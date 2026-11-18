@@ -52,27 +52,6 @@ const unxor = (s) =>
     .map((c, i) => (i % 2 ? String.fromCharCode(c.charCodeAt(0) ^ 2) : c))
     .join("");
 
-async function rhSession() {
-  let id = store.get("rh:session");
-  if (id) {
-    const exists = await fetch(`/sessionexists?id=${id}`).then((r) => r.text()).catch(() => "");
-    if (exists !== "exists") id = null;
-  }
-  if (!id) {
-    const r = await fetch("/newsession");
-    if (!r.ok) throw new Error(dec("aRB7IE8aUxR3KQoLVAR6KURPT1F1P08JTxQ2LAobXgJlJEUGFQ=="));
-    id = (await r.text()).trim();
-    store.set("rh:session", id);
-  }
-  await fetch(`/editsession?id=${id}&enableShuffling=0`).catch(() => {});
-  return id;
-}
-export function resetRh() {
-  const id = store.get("rh:session");
-  store.del("rh:session");
-  if (id) fetch(`/deletesession?id=${id}`).catch(() => {});
-}
-
 async function proxiedSrc(engine, url) {
   const st = await engineStatus();
   if (!st[engine]?.ok) throw new Error(`${ENGINES[engine].name} is turned off on this server${st[engine]?.reason ? ` (${st[engine].reason})` : ""}.`);
@@ -80,14 +59,8 @@ async function proxiedSrc(engine, url) {
     case "e2":
       await boot();
       return __uv$config.prefix + __uv$config.encodeUrl(url);
-    case "e3":
-      return `/${await rhSession()}/${url}`;
     case "e4":
       return `/svc/c/${xor(url)}`;
-    case "e5": {
-      const base = st.e5.url;
-      return `${base}/womginxaddcookie/${Date.now()}/${base}/main/${url}`;
-    }
   }
   throw new Error("Unknown engine");
 }
@@ -97,7 +70,6 @@ function decodeFrameUrl(engine, frame) {
     const loc = frame.contentWindow.location;
     const path = loc.pathname + loc.search + loc.hash;
     if (engine === "e2" && path.startsWith(__uv$config.prefix)) return __uv$config.decodeUrl(path.slice(__uv$config.prefix.length));
-    if (engine === "e3") return /^\/[a-z0-9]{32}[^/]*\/(.+)$/.exec(path)?.[1] || null;
     if (engine === "e4" && path.startsWith("/svc/c/")) return unxor(path.slice(7).replace(/^[a-z]+_\//, ""));
   } catch {}
   return null;

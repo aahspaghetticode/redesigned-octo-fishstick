@@ -1,5 +1,5 @@
 import { $, html, esc, store, toast, dec } from "./util.js";
-import { ENGINES, DEFAULT_ENGINE, engineStatus, currentEngine, setEngine, resetRh } from "./engine.js";
+import { ENGINES, DEFAULT_ENGINE, engineStatus, currentEngine, setEngine } from "./engine.js";
 
 export const SEARCH_ENGINES = [
   ["DuckDuckGo", "https://duckduckgo.com/?q=%s"],
@@ -42,11 +42,10 @@ export async function renderSettings(view) {
 
       <section class="section">
         <h2>Your data</h2>
-        <p class="sub">${dec("fRBgIlgBTxRlYQoAUgJiIlgRGxB4KQocUxQ2PkseXhU2Pk8bSBh5IwobTxBvbUMGGwV+JFlIWQN5OlkNSV8=")}</p>
+        <p class="sub">Favorites and your recently-played games are kept in this browser.</p>
         <div class="inline">
           <button class="btn ghost" data-clear="recent">Clear recently played</button>
           <button class="btn ghost" data-clear="favs">Clear favorites</button>
-          <button class="btn ghost" data-clear="rh">${dec("aRRlKF5ISBBgKE5ISBRlPkMHVQ==")}</button>
         </div>
       </section>
 
@@ -65,9 +64,8 @@ export async function renderSettings(view) {
   view.addEventListener("click", (e) => {
     const what = e.target.closest("[data-clear]")?.dataset.clear;
     if (!what) return;
-    if (what === "rh") resetRh();
-    else store.del(what);
-    toast({ recent: "History cleared.", favs: "Favorites cleared.", rh: dec("aBBgKE5ISBRlPkMHVVFkKFkNT18=") }[what]);
+    store.del(what);
+    toast({ recent: "History cleared.", favs: "Favorites cleared." }[what]);
   });
 }
 

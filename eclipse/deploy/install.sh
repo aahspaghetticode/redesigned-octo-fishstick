@@ -4,8 +4,6 @@
 #
 # Options (environment variables):
 #   DOMAIN=hub.example.com   public hostname (default: <ip-with-dashes>.sslip.io)
-#   WOMGINX=0                skip the Womginx engine (needs nginx + a subdomain)
-#   WOMGINX_DOMAIN=...       hostname for Womginx (default: wg.$DOMAIN)
 #
 # HTTPS is required: Scramjet and Ultraviolet run in a service worker.
 set -euo pipefail
@@ -14,7 +12,6 @@ SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP=/opt/eclipse
 ENV_FILE=/etc/eclipse.env
 SVC_USER=eclipse
-WOMGINX="${WOMGINX:-1}"
 
 step() { printf '\n==> %s\n' "$*"; }
 warn() { printf '    WARNING: %s\n' "$*" >&2; }
@@ -67,33 +64,13 @@ chown -R "$SVC_USER:$SVC_USER" "$APP"
 # ---- hostnames ----
 PUBLIC_IP="$(curl -fsS4 --max-time 10 https://api.ipify.org || hostname -I | awk '{print $1}')"
 if [ -z "${DOMAIN:-}" ]; then DOMAIN="${PUBLIC_IP//./-}.sslip.io"; fi
-WOMGINX_DOMAIN="${WOMGINX_DOMAIN:-wg.$DOMAIN}"
 
-# ---- Womginx (optional engine on its own subdomain) ----
-WOMGINX_URL=""
-if [ "$WOMGINX" = "1" ]; then
-  step "Womginx engine"
-  resolved="$(getent ahostsv4 "$WOMGINX_DOMAIN" | awk 'NR==1{print $1}')"
-  if [ "$resolved" != "$PUBLIC_IP" ]; then
-    warn "$WOMGINX_DOMAIN resolves to '${resolved:-nothing}', not $PUBLIC_IP. Add a DNS A record for it, then re-run. Skipping Womginx."
-  else
-    if ! command -v nginx >/dev/null; then
-      # Install nginx without starting it: Caddy owns ports 80/443.
-      printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d && chmod +x /usr/sbin/policy-rc.d
-      apt-get install -y nginx || true
-      rm -f /usr/sbin/policy-rc.d
-    fi
-    systemctl disable --now nginx 2>/dev/null || true
-    if bash "$APP/deploy/womginx/setup.sh"; then
-      install -m 644 "$APP/deploy/womginx/eclipse-womginx.service" /etc/systemd/system/eclipse-womginx.service
-      systemctl daemon-reload
-      systemctl enable --now eclipse-womginx
-      systemctl restart eclipse-womginx
-      WOMGINX_URL="https://$WOMGINX_DOMAIN"
-    else
-      warn "Womginx setup failed (see output above). Eclipse will run without it."
-    fi
-  fi
+# A stale Womginx install from an earlier version? Remove it.
+if [ -f /etc/systemd/system/eclipse-womginx.service ]; then
+  systemctl disable --now eclipse-womginx 2>/dev/null || true
+  rm -f /etc/systemd/system/eclipse-womginx.service
+  rm -rf /opt/womginx
+  systemctl daemon-reload
 fi
 
 # ---- settings ----
@@ -110,7 +87,8 @@ ensure JELLYFIN_URL stub
 ensure CLASSROOM6X_URL https://classroom6x.com/
 ensure SHELL_ENABLED true
 ensure SHELL_USER root
-setkey WOMGINX_URL "$WOMGINX_URL"
+# Drop WOMGINX_URL left by an earlier version so the engine stays gone.
+sed -i '/^WOMGINX_URL=/d' "$ENV_FILE"
 
 step "Eclipse service"
 install -m 644 "$APP/deploy/eclipse.service" /etc/systemd/system/eclipse.service
@@ -119,10 +97,7 @@ systemctl enable eclipse >/dev/null
 systemctl restart eclipse
 
 step "Caddy for https://$DOMAIN"
-{
-  printf '%s {\n\tencode zstd gzip\n\treverse_proxy 127.0.0.1:8080\n}\n' "$DOMAIN"
-  if [ -n "$WOMGINX_URL" ]; then printf '\n%s {\n\treverse_proxy 127.0.0.1:8090\n}\n' "$WOMGINX_DOMAIN"; fi
-} > /etc/caddy/Caddyfile
+printf '%s {\n\tencode zstd gzip\n\treverse_proxy 127.0.0.1:8080\n}\n' "$DOMAIN" > /etc/caddy/Caddyfile
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
 systemctl enable caddy >/dev/null
 systemctl reload caddy || systemctl restart caddy
@@ -151,8 +126,7 @@ sleep 3
 if curl -fsS http://127.0.0.1:8080/api/health >/dev/null; then
   echo
   echo "Eclipse is running:  https://$DOMAIN"
-  echo "Engines:             $(curl -fsS http://127.0.0.1:8080/api/engines)"
-  [ -n "$WOMGINX_URL" ] && echo "Womginx:             $WOMGINX_URL"
+  echo "Engines:             Scramjet (default), Ultraviolet, Corrosion"
   echo "Settings:            $ENV_FILE  (then: systemctl restart eclipse)"
   echo "Logs:                journalctl -u eclipse -f"
 else

@@ -1,4 +1,4 @@
-// Stops the server-side proxy engines (Rammerhead, Corrosion) from being
+// Stops the server-side proxy engine (Corrosion) from being
 // pointed at the VPS itself or its private network (SSRF). Scramjet and
 // Ultraviolet go through Wisp, which has the same protection built in.
 import dns from "node:dns/promises";

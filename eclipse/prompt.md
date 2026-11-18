@@ -11,7 +11,7 @@ The person who owns the server ("the owner") is your user. Do what this brief as
 - **Credentials.** The owner gives you the SSH login directly. Never write a password or token into a file, commit, script, log, or this repository. If you use `sshpass`, pass the password through the `SSHPASS` environment variable with `sshpass -e`, never with `-p`. Prefer installing an SSH key for yourself if the owner agrees.
 - **Don't lock anyone out.** Before changing anything in `/etc/ssh/`, open a second SSH session and keep it open until you've confirmed a fresh login still works. Never enable a firewall without allowing port 22 first.
 - **Ask the owner before you:** change sshd settings, change the root password, delete data that isn't Eclipse's, stop services that aren't Eclipse's (for example Apache on port 80), or open ports other than 80 and 443.
-- **Keep internal ports private.** Node listens on `127.0.0.1:8080` and Womginx on `127.0.0.1:8090`. Only Caddy faces the internet, on ports 80 and 443.
+- **Keep internal ports private.** Node listens on `127.0.0.1:8080`. Only Caddy faces the internet, on ports 80 and 443.
 - **Never disable TLS verification** to make a test pass.
 - **Make changes in the repository, not only on the server.** `/opt/eclipse` is overwritten on every deploy, so a fix made only there is lost on the next one.
 
@@ -23,9 +23,8 @@ The person who owns the server ("the owner") is your user. Do what this brief as
 | OS | Debian. Confirm with `cat /etc/os-release`. |
 | Repository | `github.com/aahspaghetticode/redesigned-octo-fishstick`, branch `claude/henws-hub-website-890ej6`, folder `eclipse/` |
 | Default public URL | `https://82-29-71-45.sslip.io` (sslip.io resolves to the IP in the name, so Let's Encrypt works with no DNS setup) |
-| Womginx URL | `https://wg.82-29-71-45.sslip.io` |
 
-First, take stock. Run `nproc; free -h; df -h /; ss -ltnp`. Eclipse needs about 1 GB of RAM, and building Womginx's client needs more. If the server has under 2 GB of RAM and no swap, add a 2 GB swapfile before installing. Note anything already listening on ports 80 or 443.
+First, take stock. Run `nproc; free -h; df -h /; ss -ltnp`. Eclipse needs about 1 GB of RAM. Note anything already listening on ports 80 or 443.
 
 ## 2. What Eclipse is
 
@@ -36,13 +35,11 @@ One Node.js app (Express) behind Caddy:
 | Site (home, games, media, settings, shell UI) | Node, `public/` | `/` |
 | **Scramjet** proxy (engine `e1`, default) | browser service worker + Wisp | `/svc/a/<url>`, `/assets/rt.js`, `/assets/rt.wasm`, `/svc/w/` |
 | **Ultraviolet** proxy (engine `e2`) | same service worker + Wisp | `/svc/b/<url>`, `/assets/vb.js` |
-| **Rammerhead** proxy (engine `e3`) | inside Node (`@rubynetwork/rammerhead`) | `/newsession`, `/<32-char session id>/<url>`, `/rammerhead.js` — **library-fixed, still carry the name** |
 | **Corrosion** proxy (engine `e4`) | inside Node | `/svc/c/<url>` |
-| **Womginx** proxy (engine `e5`) | separate nginx instance on `127.0.0.1:8090`, its own subdomain | `https://wg.<domain>/main/<url>` |
 | gn-math games | Node mirrors and caches gn-math's GitHub repos | `/api/lib/a` |
 | Classroom 6x games | Node scraper (section 6) | `/api/lib/b` |
 
-The engine routes/filenames are deliberately neutral (`/assets/*`, `/svc/*`), engines are exposed to the client only as opaque ids `e1`–`e5`, and the whole proxy module (`public/js/net.js` plus the engine bundles) loads **only when the person opens Browse or plays a proxied game** — the landing page and the games/media pages fetch none of it. Rammerhead (`e3`) is the exception: its routes and injected `/rammerhead.js` are fixed by the library, so it is the one engine that still looks like a known proxy on the wire. Scramjet (`e1`) is the default.
+There are three engines: **Scramjet** (`e1`, default), **Ultraviolet** (`e2`) and **Corrosion** (`e4`). Rammerhead and Womginx were deliberately removed — their fixed `/rammerhead.js` and subdomain signatures could get the whole domain flagged. The engine routes/filenames are neutral (`/assets/*`, `/svc/*`), engines are exposed to the client only as opaque ids, and the whole proxy module (`public/js/net.js` plus the engine bundles) loads **only when the person opens Browse or plays a proxied game** — the landing page and the games/media pages fetch none of it. Do not re-add Rammerhead or Womginx.
 | Jellyfin client | Node reverse-proxies to `JELLYFIN_URL` | `/jf/*` |
 | Server shell | Node logs in to `127.0.0.1:22` over SSH | `/#/x` (hidden), WebSocket `/x/ws`, status `/api/x/status` |
 
@@ -51,10 +48,9 @@ Files on the server:
 - `/opt/eclipse`: the app
 - `/etc/eclipse.env`: settings
 - `/etc/systemd/system/eclipse.service`
-- `/opt/womginx`, plus `/etc/systemd/system/eclipse-womginx.service`
 - `/etc/caddy/Caddyfile`
 
-Rammerhead and Corrosion fetch pages from the server, so Eclipse checks every destination in `src/netguard.js`. Anything on loopback, private or link-local addresses gets a 403. Wisp has the same rule built in, and Womginx's nginx config gets a matching rule from `deploy/womginx/setup.sh`. Keep these protections in place.
+Corrosion fetches pages from the server, so Eclipse checks every destination in `src/netguard.js`: anything on loopback, private or link-local addresses gets a 403. Wisp (which Scramjet and Ultraviolet tunnel through) has the same rule built in. Keep these protections in place.
 
 ## 3. Install
 
@@ -79,16 +75,13 @@ cd /root/eclipse-src/eclipse && bash deploy/install.sh
 1. Installs base packages, Node.js 22 (NodeSource) and Caddy (official apt repository).
 2. Removes an older "henws-hub" install if one exists, keeping its settings.
 3. Copies the app to `/opt/eclipse`, runs `npm ci --omit=dev`, and runs it as the system user `eclipse`.
-4. **Womginx:** installs nginx without starting the stock service (Caddy owns ports 80 and 443), clones Womginx, builds wombat at the commit upstream pins (`78813ad`), and writes `/opt/womginx/nginx.eclipse.conf`. It only does this if `wg.<domain>` resolves to this server. If the build fails, the installer warns and carries on without Womginx.
-5. Writes any missing keys to `/etc/eclipse.env`, with `SHELL_ENABLED=true` and `WOMGINX_URL` set.
-6. Starts `eclipse`, then writes the Caddyfile for `<domain>` and `wg.<domain>`.
-7. Checks whether sshd will accept the web shell's login, and warns if it won't (section 5).
+4. Writes any missing keys to `/etc/eclipse.env`, with `SHELL_ENABLED=true`.
+5. Starts `eclipse`, then writes the Caddyfile for `<domain>`.
+6. Checks whether sshd will accept the web shell's login, and warns if it won't (section 5).
 
 Options, set as environment variables:
 
-- `DOMAIN=hub.example.com`: use the owner's domain. Its A record must point at the server first, and so must `wg.hub.example.com` if Womginx is wanted.
-- `WOMGINX=0`: skip Womginx.
-- `WOMGINX_DOMAIN=...`: use a different hostname for Womginx.
+- `DOMAIN=hub.example.com`: use the owner's domain. Its A record must point at the server first.
 
 The VPS provider may have its own firewall in front of the server. If Caddy can't get a certificate, check that ports 80 and 443 are open there too.
 
@@ -100,15 +93,15 @@ Run these on the server. Set `D=82-29-71-45.sslip.io`, or the owner's domain. Ev
 D=82-29-71-45.sslip.io
 
 # services
-systemctl is-active eclipse caddy eclipse-womginx
-journalctl -u eclipse -n 30 --no-pager      # expect "Eclipse listening ... [scramjet:on ultraviolet:on rammerhead:on corrosion:on womginx:on] shell:on"
+systemctl is-active eclipse caddy
+journalctl -u eclipse -n 30 --no-pager      # expect "Eclipse listening ... [e1:on e2:on e4:on] shell:on"
 
 # HTTPS with a real certificate (no -k)
 curl -fsS https://$D/api/health                          # {"ok":true}
 # Several API responses are lightly obfuscated so a content filter can't read
 # them in transit (see "A note on the obfuscation" below). Decode with this helper:
 dco() { node -e 'const K=[59,113,22,77,42,104];let b="";process.stdin.on("data",d=>b+=d).on("end",()=>{const z=Buffer.from(b.trim(),"base64");process.stdout.write(Buffer.from(z.map((v,i)=>v^K[i%6])).toString("utf8"))})'; }
-curl -fsS https://$D/api/engines | dco; echo                 # every engine "ok":true
+curl -fsS https://$D/api/cfg | dco; echo                     # every engine "ok":true
 curl -fsS https://$D/api/lib/a | dco | head -c 200; echo  # source gn-math, count over 800
 curl -fsS https://$D/api/x/status | dco; echo                # {"enabled":true,"user":"root"}
 
@@ -116,19 +109,12 @@ curl -fsS https://$D/api/x/status | dco; echo                # {"enabled":true,"
 curl -s -o /dev/null -w '%{http_code}\n' --http1.1 -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
   -H 'Sec-WebSocket-Version: 13' -H "Sec-WebSocket-Key: $(openssl rand -base64 16)" https://$D/svc/w/
 
-# Rammerhead: public site 200, private address 403
-ID=$(curl -fsS https://$D/newsession); curl -fsS "https://$D/editsession?id=$ID&enableShuffling=0"; echo
-curl -s -o /dev/null -w '%{http_code}\n' "https://$D/$ID/https://example.com/"
-curl -s -o /dev/null -w '%{http_code}\n' "https://$D/$ID/http://127.0.0.1:8080/api/health"
 
 # Corrosion: public 200, private 403
 x() { node -e 'const s=process.argv[1];console.log(encodeURIComponent([...s].map((c,i)=>i%2?String.fromCharCode(c.charCodeAt(0)^2):c).join("")))' "$1"; }
 curl -s -o /dev/null -w '%{http_code}\n' "https://$D/svc/c/$(x https://example.com/)"
 curl -s -o /dev/null -w '%{http_code}\n' "https://$D/svc/c/$(x http://127.0.0.1:8080/)"
 
-# Womginx: public 200, private 403
-curl -s -o /dev/null -w '%{http_code}\n' -b 'womginx_are_you_a_bot=no' "https://wg.$D/main/https://example.com/"
-curl -s -o /dev/null -w '%{http_code}\n' -b 'womginx_are_you_a_bot=no' "https://wg.$D/main/http://127.0.0.1:8080/"
 ```
 
 **Check in a real browser if you can.** If you have a browser tool, open `https://$D`. Then go to **Settings → Proxy engine**, select each engine in turn, and in **Browse** load `https://example.com` and `https://en.wikipedia.org`. Every engine should render the page, and the address bar should show the real URL. Also open **Games**, check that covers load, and play one gn-math game. If you have no browser tool, say so in your report instead of claiming this passed.
@@ -157,7 +143,7 @@ This site is built to minimise what a network content filter can match on. Under
 - **Neutral routes/filenames.** Engine files are served from `/assets/*` (`rt.js`, `rt.wasm`, `vb.js`, `mx.js`, `tp.mjs`, …), the in-page proxy paths are `/svc/a` (Scramjet) and `/svc/b` (Ultraviolet), Corrosion is `/svc/c`, Wisp is `/svc/w`, Jellyfin is `/svc/m`, the catalogs are `/api/lib/a` and `/api/lib/b`, and status is `/api/cfg` / `/api/x/status`. Engines appear to the client only as `e1`–`e5`. Keep it that way.
 - **Visible text + some API bodies are obfuscated** (XOR+base64, `src/obf.js` and `dec()` in `util.js`); the browser decodes at runtime. Obfuscated endpoints: `/api/cfg`, `/api/lib/a`, `/api/lib/b`, `/api/x/status`. Pipe them through `dco` when verifying; don't convert them back to plain JSON.
 
-**What this does and does not beat.** This defeats signature- and keyword-based filters: URL/filename blocklists, known-proxy fingerprints, and scanners that classify a page by its visible text or its loaded JavaScript. It does **not** make a web proxy invisible to a filter that both intercepts TLS *and* renders/executes the page — such a filter sees the decoded DOM and every request the moment the proxy is actually used, and no change inside this app can prevent that. The remaining, unavoidable fingerprints are: the **Rammerhead** engine (`e3`), whose `/newsession`, `/<id>/<url>` and injected `/rammerhead.js` are fixed by its library; the **Womginx** subdomain (`/main/`, `womginxaddcookie`); the WebSocket tunnel itself (a `wss://` connection to `/svc/w/`, though its payload is encrypted); and the vendored engine bundles' own code once they load during active use. Against a truly advanced runtime filter the real defences are operational, not code: a custom domain with clean reputation (sslip.io is itself a flaggable pattern), preferring Scramjet/Ultraviolet (`e1`/`e2`) over Rammerhead, and accepting that the filter may still block the domain or the tunnel. Tell the owner this plainly rather than implying the proxy is undetectable.
+**What this does and does not beat.** This defeats signature- and keyword-based filters: URL/filename blocklists, known-proxy fingerprints, and scanners that classify a page by its visible text or its loaded JavaScript. It does **not** make a web proxy invisible to a filter that both intercepts TLS *and* renders/executes the page — such a filter sees the decoded DOM and every request the moment the proxy is actually used, and no change inside this app can prevent that. The remaining, unavoidable fingerprints are: the WebSocket tunnel itself (a `wss://` connection to `/svc/w/`, though its payload is encrypted) and the vendored engine bundles' own code once they load during active use. (The two engines with the worst fixed signatures, Rammerhead and Womginx, have been removed.) Against a truly advanced runtime filter the real defences are operational, not code: a custom domain with clean reputation (sslip.io is itself a flaggable pattern), and accepting that the filter may still block the domain or the tunnel. Tell the owner this plainly rather than implying the proxy is undetectable.
 
 ## 5. Server shell
 
@@ -262,32 +248,27 @@ The Media tab talks to Jellyfin only through `/jf/*`, which Eclipse forwards to 
 - **Logs:**
   - Eclipse: `journalctl -u eclipse -f`
   - Caddy: `journalctl -u caddy -f`
-  - Womginx: `journalctl -u eclipse-womginx` and `/var/log/eclipse-womginx.log`
-- **Settings:** `/etc/eclipse.env`. Keys include `JELLYFIN_URL`, `CLASSROOM6X_URL`, `SHELL_ENABLED`, `SHELL_USER`, `WOMGINX_URL`, `ENGINE_RAMMERHEAD=false` and `ENGINE_CORROSION=false` (to turn an engine off), and `WISP_DNS`.
+- **Settings:** `/etc/eclipse.env`. Keys include `JELLYFIN_URL`, `CLASSROOM6X_URL`, `SHELL_ENABLED`, `SHELL_USER`, `ENGINE_CORROSION=false` (to turn Corrosion off), and `WISP_DNS`.
 
 | Symptom | Likely cause and fix |
 |---|---|
 | No certificate, Caddy logs ACME errors | Ports 80/443 closed at the provider, another service on port 80 (`ss -ltnp`), or the sslip.io rate limit. Use the owner's own domain if needed. |
 | "This engine needs HTTPS" in Browse | The site was opened over `http://`. Use the `https://` URL. |
 | Scramjet/Ultraviolet: blank page or WebSocket errors | `/svc/w/` isn't returning 101 (check Caddy), or there's an old service worker. Hard-reload, or clear site data. |
-| Womginx shows "Turned off" in Settings | `WOMGINX_URL` is empty because DNS for `wg.<domain>` doesn't point here, or the build failed. Re-run the installer and read the Womginx step. |
-| Womginx build fails | Old wombat dependencies on Node 22. Try `npx -y node@16 $(which npm) run build-prod` inside the wombat checkout, or install with `WOMGINX=0` and report it. |
-| Womginx returns 403 "you are not allowed" | Its bot blocklist matched the User-Agent (curl, wget, Python…). Test with a browser User-Agent. |
-| Rammerhead "session not found" | Settings → Reset Rammerhead session. |
 | Shell says "Wrong password" for the right password | sshd refuses root password logins from localhost (section 5), or the IP is locked out (wait 15 minutes). |
-| High memory use | Rammerhead is the heaviest engine. Set `ENGINE_RAMMERHEAD=false` if the server is small. |
+| High memory use | Corrosion is the heaviest engine. Set `ENGINE_CORROSION=false` if the server is small. |
 
 ## 9. Security
 
 - The root password was pasted into an AI chat when this project started. **Recommend that the owner change it** with `passwd` once everything works; the web shell follows automatically. Let the owner do it themselves, or do it only with their go-ahead and never write the new one anywhere.
 - Suggest `apt-get install -y unattended-upgrades` so security updates install automatically, and ask before enabling it.
-- Don't expose ports 8080 or 8090. Don't remove the private-network guards (`src/netguard.js`, Wisp's `allow_private_ips: false`, the `eclipse_private_target` rule in the Womginx config).
+- Don't expose port 8080. Don't remove the private-network guards (`src/netguard.js`, and Wisp's `allow_private_ips: false`).
 
 ## 10. Report back
 
 Finish with a short report to the owner:
 
-1. The live URLs (main site and Womginx).
+1. The live URL.
 2. Each check from section 4: **passed**, **failed** (with the error), or **not tested** (with the reason).
 3. The Classroom 6x result: which site you used, the game count, how covers and play URLs are found, the acceptance checklist, and where the change was committed.
 4. Anything you changed outside `/opt/eclipse` (sshd, firewall, swap, packages).
