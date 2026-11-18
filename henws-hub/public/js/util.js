@@ -52,15 +52,8 @@ export const store = {
   },
 };
 
-/** Deterministic muted colour for cards without artwork. */
-export function tint(name) {
-  let h = 0;
-  for (const c of String(name)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return `hsl(${h % 360} 28% 26%)`;
-}
-
 export function letterTile(name) {
-  return html`<div class="letter" style="background:${tint(name)}">${(String(name).trim()[0] || "?").toUpperCase()}</div>`;
+  return html`<div class="letter" aria-hidden="true">${(String(name).trim()[0] || "?").toUpperCase()}</div>`;
 }
 
 export async function requestFullscreen(el) {

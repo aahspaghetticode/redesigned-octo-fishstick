@@ -44,15 +44,14 @@ function pushRecent(id) {
 }
 
 export function gameCard(g) {
-  const src = g.source === "gn-math" ? "gn" : "6x";
+  const meta = g.source === "gn-math" ? (g.author ? `gn-math · ${g.author}` : "gn-math") : "Classroom 6x";
   return html`<button class="card" data-game="${g.id}" title="${g.name}">
     <div class="thumb">
       ${letterTile(g.name)}
       ${g.cover ? html`<img loading="lazy" decoding="async" alt="" src="${g.cover}" onerror="this.remove()" />` : ""}
-      <span class="badge">${src}</span>
     </div>
     <span class="name">${g.name}</span>
-    ${g.author ? html`<span class="meta">${g.author}</span>` : ""}
+    <span class="meta">${meta}</span>
   </button>`;
 }
 
@@ -207,7 +206,7 @@ export async function playGame(id) {
 
 function updateFavButton() {
   const b = $("#player [data-act='fav']");
-  if (b && currentGame) b.textContent = favs().has(currentGame.id) ? "★ Favorited" : "☆ Favorite";
+  if (b && currentGame) b.textContent = favs().has(currentGame.id) ? "Remove favorite" : "Add to favorites";
 }
 
 export function initPlayer() {

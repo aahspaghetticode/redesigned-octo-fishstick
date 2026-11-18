@@ -74,7 +74,7 @@ function itemCard(item, { wide = false } = {}) {
   const meta =
     item.Type === "Episode"
       ? `S${item.ParentIndexNumber ?? "?"}:E${item.IndexNumber ?? "?"} · ${item.Name}`
-      : item.ProductionYear || item.Type || "";
+      : item.ProductionYear || TYPE_LABEL[item.Type] || "";
   return html`<button class="card${wide ? " wide" : ""}" data-item="${item.Id}" data-type="${item.Type}" title="${title}">
     <div class="thumb">
       ${letterTile(title)}
@@ -86,6 +86,7 @@ function itemCard(item, { wide = false } = {}) {
   </button>`;
 }
 
+const TYPE_LABEL = { CollectionFolder: "Library", UserView: "Library", Series: "Series", BoxSet: "Collection", Folder: "Folder", Playlist: "Playlist" };
 const FIELDS = "PrimaryImageAspectRatio,ProductionYear,Overview,UserData,ChildCount";
 
 // ---------- Views ----------
@@ -293,7 +294,7 @@ async function renderItem(view, id) {
     item.ProductionYear,
     item.OfficialRating,
     runtime(item.RunTimeTicks),
-    item.CommunityRating ? `★ ${item.CommunityRating.toFixed(1)}` : "",
+    item.CommunityRating ? `Rated ${item.CommunityRating.toFixed(1)}` : "",
     (item.Genres || []).slice(0, 3).join(", "),
   ].filter(Boolean);
   view.innerHTML = html`
