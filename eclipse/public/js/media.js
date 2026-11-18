@@ -1,9 +1,9 @@
 // Jellyfin web client. All requests go to /jf/*, which the server reverse
 // proxies to JELLYFIN_URL (a stub until configured).
-import { $, html, esc, store, toast, letterTile } from "./util.js";
+import { $, html, esc, store, toast, letterTile, icon } from "./util.js";
 
 const BASE = "/jf";
-const CLIENT = "henws hub";
+const CLIENT = "Eclipse";
 const VERSION = "1.0.0";
 const TICKS = 10_000_000;
 
@@ -116,25 +116,26 @@ export async function renderMedia(view, path) {
 
 function renderStub(view) {
   view.innerHTML = html`
-    <h1>Media</h1>
-    <p class="sub">Jellyfin client</p>
-    <div class="notice">
-      No Jellyfin server is connected yet. The host is a stub. To connect one, set
-      <code>JELLYFIN_URL</code> in <code>/etc/henws-hub.env</code> on the server (for example
-      <code>JELLYFIN_URL=http://10.0.0.5:8096</code>), then run <code>systemctl restart henws-hub</code>.
+    <div class="panel" style="max-width:520px">
+      <img class="mark" src="/logo.svg" alt="" />
+      <h1>No media server yet</h1>
+      <p class="muted">Media plays from a Jellyfin server, and this one hasn't been connected. To connect it, set
+      <code>JELLYFIN_URL</code> in <code>/etc/eclipse.env</code> on the server (for example
+      <code>JELLYFIN_URL=http://10.0.0.5:8096</code>), then run <code>systemctl restart eclipse</code>.</p>
     </div>
   `.toString();
 }
 
 function renderLogin(view, cfg) {
   view.innerHTML = html`
-    <form class="login" id="jf-login">
+    <form class="panel" id="jf-login">
+      <img class="mark" src="/logo.svg" alt="" />
       <h1>Sign in to Jellyfin</h1>
-      <p class="sub">Server: ${cfg.server}</p>
+      <p class="sub">${cfg.server}</p>
       <div class="field"><label for="jf-user">Username</label><input class="input" id="jf-user" autocomplete="username" required /></div>
       <div class="field"><label for="jf-pass">Password</label><input class="input" id="jf-pass" type="password" autocomplete="current-password" /></div>
       <div class="notice err" id="jf-err" hidden></div>
-      <button class="btn" type="submit" style="width:100%;justify-content:center">Sign in</button>
+      <button class="btn" type="submit">Sign in</button>
     </form>`.toString();
   $("#jf-login", view).addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -160,11 +161,11 @@ function renderLogin(view, cfg) {
 function header(crumbs = []) {
   return html`
     <div class="toolbar">
-      <form id="jf-search" style="display:flex;flex:1 1 260px;gap:8px">
-        <input class="input" style="flex:1" name="q" type="search" placeholder="Search movies, shows, episodes" aria-label="Search media" />
+      <form id="jf-search" class="search">
+        ${icon("search")}<input class="input" name="q" type="search" placeholder="Search movies, shows and episodes" aria-label="Search media" data-slash /><kbd>/</kbd>
       </form>
-      <span class="muted" style="font-size:13px">${session.userName}</span>
-      <button class="btn ghost" id="jf-logout">Sign out</button>
+      <span class="muted" style="font-size:13px;margin-left:auto">Signed in as ${session.userName}</span>
+      <button class="btn quiet" id="jf-logout">Sign out</button>
     </div>
     ${crumbs.length
       ? html`<nav class="crumbs"><a href="#/media">Media</a>${crumbs.map((c) => html`<span>/</span>${c.href ? html`<a href="${c.href}">${c.label}</a>` : html`<span>${c.label}</span>`}`)}</nav>`
@@ -273,7 +274,7 @@ async function renderLibrary(view, id) {
     start += r.Items.length;
     $("#jf-count", view).textContent = `${r.TotalRecordCount.toLocaleString()} items`;
     $("#jf-more", view).hidden = start >= r.TotalRecordCount;
-    if (!r.TotalRecordCount) grid.innerHTML = `<div class="empty" style="grid-column:1/-1">This library is empty.</div>`;
+    if (!r.TotalRecordCount) grid.innerHTML = `<div class="empty">This library is empty.</div>`;
   };
   $("#jf-sort", view).addEventListener("change", () => load(true).catch((e) => toast(e.message)));
   $("#jf-more", view).addEventListener("click", () => load(false).catch((e) => toast(e.message)));
@@ -368,7 +369,7 @@ async function renderSearch(view) {
   });
   view.innerHTML = html`
     ${header([{ label: `Search: ${q}` }])}
-    <div class="grid posters">${r.Items.length ? r.Items.map((i) => itemCard(i)) : html`<div class="empty" style="grid-column:1/-1">Nothing found for “${q}”.</div>`}</div>
+    <div class="grid posters">${r.Items.length ? r.Items.map((i) => itemCard(i)) : html`<div class="empty">Nothing found for “${q}”.</div>`}</div>
   `.toString();
   bindCommon(view);
   const input = $("#jf-search input", view);

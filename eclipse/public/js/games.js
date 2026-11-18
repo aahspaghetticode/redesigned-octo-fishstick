@@ -1,4 +1,4 @@
-import { $, html, raw, esc, store, toast, letterTile, requestFullscreen } from "./util.js";
+import { $, html, raw, esc, store, toast, letterTile, requestFullscreen, icon } from "./util.js";
 import { createProxiedFrame } from "./proxy.js";
 
 const PAGE = 120;
@@ -64,8 +64,12 @@ export function bindCardClicks(root) {
 
 const TAG_LABELS = { flash: "Flash", emulator: "Emulator", port: "Ports", fnf: "FNF", dos: "DOS", tools: "Tools" };
 
+export const skeletonCards = (n) =>
+  Array.from({ length: n }, () => `<div class="card skeleton" aria-hidden="true"><div class="thumb"></div><div class="name"></div><div class="meta"></div></div>`).join("");
+
 export async function renderGames(view, params) {
-  view.innerHTML = html`<h1>Games</h1><p class="sub">Loading catalog…</p>`.toString();
+  view.innerHTML = html`<div class="page-head"><div><h1>Games</h1><p class="sub">Loading the catalogs…</p></div></div>
+    <div class="grid" aria-busy="true">${raw(skeletonCards(21))}</div>`.toString();
   const cat = await loadCatalog();
   const state = {
     q: params.get("q") || "",
@@ -78,13 +82,15 @@ export async function renderGames(view, params) {
   for (const g of cat.games) g.source === "gn-math" ? counts.gn++ : counts.c6x++;
 
   view.innerHTML = html`
-    <h1>Games</h1>
-    <p class="sub">${cat.games.length.toLocaleString()} games from gn-math (${counts.gn}) and Classroom 6x (${counts.c6x}).</p>
+    <div class="page-head">
+      <div><h1>Games</h1><p class="sub">${cat.games.length.toLocaleString()} games from gn-math (${counts.gn.toLocaleString()}) and Classroom 6x (${counts.c6x.toLocaleString()}).</p></div>
+    </div>
     ${cat.errors.map((e) => html`<div class="notice err">${e}</div>`)}
     <div class="toolbar">
-      <input class="input" id="g-q" type="search" placeholder="Search games" value="${state.q}" aria-label="Search games" />
+      <label class="search">${icon("search")}<input class="input" id="g-q" type="search" placeholder="Search games or developers" value="${state.q}" aria-label="Search games" data-slash /><kbd>/</kbd></label>
+      <span class="count" id="g-count"></span>
     </div>
-    <div class="quick" id="g-filters" style="margin:0 0 18px"></div>
+    <div class="quick" id="g-filters" style="margin:0 0 22px"></div>
     <div class="grid" id="g-grid"></div>
     <div class="more"><button class="btn ghost" id="g-more" hidden>Show more</button></div>
   `.toString();
@@ -128,7 +134,8 @@ export async function renderGames(view, params) {
     const gs = list();
     grid.innerHTML = gs.length
       ? gs.slice(0, state.shown).map((g) => gameCard(g).toString()).join("")
-      : `<div class="empty" style="grid-column:1/-1">No games match.</div>`;
+      : `<div class="empty">${state.source === "favs" ? "No favorites yet. Open a game and press Favorite." : state.source === "recent" ? "Games you play show up here." : "No games match that search."}</div>`;
+    $("#g-count", view).textContent = `${gs.length.toLocaleString()} ${gs.length === 1 ? "game" : "games"}`;
     $("#g-more", view).hidden = gs.length <= state.shown;
     const p = new URLSearchParams();
     if (state.q) p.set("q", state.q);
@@ -174,6 +181,7 @@ export async function playGame(id) {
   const player = $("#player");
   const stage = $("#player-stage");
   $("#player-title").textContent = g.name;
+  $("#player-source").textContent = g.source === "gn-math" ? `gn-math${g.author ? " · " + g.author : ""}` : "Classroom 6x · via proxy";
   updateFavButton();
   stage.innerHTML = `<div class="loading">Loading ${esc(g.name)}…</div>`;
   player.hidden = false;
@@ -196,8 +204,8 @@ export async function playGame(id) {
       if (currentGame !== g) return;
       const frame = await createProxiedFrame(target);
       if (currentGame !== g) return;
-      stage.replaceChildren(frame.frame);
-      frame.frame.focus();
+      stage.replaceChildren(frame);
+      frame.focus();
     }
   } catch (e) {
     stage.innerHTML = `<div class="loading">${esc(e.message)}</div>`;
@@ -206,16 +214,16 @@ export async function playGame(id) {
 
 function updateFavButton() {
   const b = $("#player [data-act='fav']");
-  if (b && currentGame) b.textContent = favs().has(currentGame.id) ? "Remove favorite" : "Add to favorites";
+  if (!b || !currentGame) return;
+  const on = favs().has(currentGame.id);
+  b.classList.toggle("on", on);
+  b.setAttribute("aria-pressed", String(on));
+  b.querySelector("svg").classList.toggle("fill", on);
+  b.querySelector(".label").textContent = on ? "Favorited" : "Favorite";
 }
 
 export function initPlayer() {
   const player = $("#player");
-  const bar = player.querySelector(".player-bar");
-  const fav = document.createElement("button");
-  fav.className = "btn ghost";
-  fav.dataset.act = "fav";
-  bar.insertBefore(fav, bar.querySelector("[data-act='fullscreen']"));
   player.addEventListener("click", (e) => {
     const act = e.target.closest("[data-act]")?.dataset.act;
     if (act === "close") closePlayer();
