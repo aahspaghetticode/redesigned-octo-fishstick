@@ -1,0 +1,23 @@
+{
+  "name": "henws-hub",
+  "version": "1.0.0",
+  "description": "henws hub: Scramjet proxy, Jellyfin client and game catalogs",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "license": "AGPL-3.0-only",
+  "dependencies": {
+    "@mercuryworkshop/bare-mux": "^2.1.9",
+    "@mercuryworkshop/epoxy-transport": "^2.1.29",
+    "@mercuryworkshop/scramjet": "^1.1.0",
+    "@mercuryworkshop/wisp-js": "^0.5.3",
+    "express": "^4.22.3",
+    "hls.js": "^1.5.20"
+  },
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}

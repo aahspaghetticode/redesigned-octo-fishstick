@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>henws hub</title>
+  <meta name="description" content="Browse, play and watch from one place." />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/app.css" />
+  <script src="/scram/scramjet.all.js" defer></script>
+  <script src="/baremux/index.js" defer></script>
+  <script src="/vendor/hls/hls.min.js" defer></script>
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/" aria-label="henws hub home">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 4h4v6h8V4h4v16h-4v-6H8v6H4z" fill="currentColor"/></svg>
+      <span>henws hub</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="#/" data-route="home">Home</a>
+      <a href="#/browse" data-route="browse">Browse</a>
+      <a href="#/games" data-route="games">Games</a>
+      <a href="#/media" data-route="media">Media</a>
+    </nav>
+  </header>
+
+  <main id="view" tabindex="-1"></main>
+
+  <!-- Persistent proxy surface: kept alive across route changes. -->
+  <section id="browser" class="browser" hidden>
+    <div class="browser-bar">
+      <button class="icon-btn" data-act="back" title="Back" aria-label="Back">&#8592;</button>
+      <button class="icon-btn" data-act="forward" title="Forward" aria-label="Forward">&#8594;</button>
+      <button class="icon-btn" data-act="reload" title="Reload" aria-label="Reload">&#8635;</button>
+      <form class="address" id="address-form" autocomplete="off">
+        <input id="address" type="text" spellcheck="false" placeholder="Search or enter a URL" aria-label="Address" />
+      </form>
+      <button class="icon-btn" data-act="fullscreen" title="Fullscreen" aria-label="Fullscreen">&#9974;</button>
+      <button class="icon-btn" data-act="close" title="Close page" aria-label="Close page">&#10005;</button>
+    </div>
+    <div class="browser-frame" id="browser-frame"></div>
+  </section>
+
+  <!-- Game player overlay -->
+  <div id="player" class="player" hidden>
+    <div class="player-bar">
+      <strong id="player-title"></strong>
+      <span class="spacer"></span>
+      <button class="btn ghost" data-act="fullscreen">Fullscreen</button>
+      <button class="btn ghost" data-act="close">Close</button>
+    </div>
+    <div class="player-stage" id="player-stage"></div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

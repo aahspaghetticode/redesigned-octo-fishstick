@@ -1,0 +1,243 @@
+import { $, html, raw, esc, store, toast, letterTile, requestFullscreen } from "./util.js";
+import { createProxiedFrame } from "./proxy.js";
+
+const PAGE = 120;
+let catalog = null; // { games: [], errors: [] }
+let loading = null;
+
+export function loadCatalog() {
+  if (catalog) return Promise.resolve(catalog);
+  if (loading) return loading;
+  loading = (async () => {
+    const sources = [
+      ["gn-math", "/api/games/gn"],
+      ["Classroom 6x", "/api/games/c6x"],
+    ];
+    const results = await Promise.all(
+      sources.map(async ([label, url]) => {
+        try {
+          const r = await fetch(url);
+          const j = await r.json();
+          if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+          return { games: j.games || [] };
+        } catch (e) {
+          return { games: [], error: `${label}: ${e.message}` };
+        }
+      })
+    );
+    catalog = {
+      games: results.flatMap((r) => r.games).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
+      errors: results.filter((r) => r.error).map((r) => r.error),
+    };
+    catalog.byId = new Map(catalog.games.map((g) => [g.id, g]));
+    loading = null;
+    return catalog;
+  })();
+  return loading;
+}
+
+const favs = () => new Set(store.get("favs", []));
+const recents = () => store.get("recent", []);
+
+function pushRecent(id) {
+  store.set("recent", [id, ...recents().filter((x) => x !== id)].slice(0, 24));
+}
+
+export function gameCard(g) {
+  const src = g.source === "gn-math" ? "gn" : "6x";
+  return html`<button class="card" data-game="${g.id}" title="${g.name}">
+    <div class="thumb">
+      ${letterTile(g.name)}
+      ${g.cover ? html`<img loading="lazy" decoding="async" alt="" src="${g.cover}" onerror="this.remove()" />` : ""}
+      <span class="badge">${src}</span>
+    </div>
+    <span class="name">${g.name}</span>
+    ${g.author ? html`<span class="meta">${g.author}</span>` : ""}
+  </button>`;
+}
+
+export function bindCardClicks(root) {
+  root.addEventListener("click", (e) => {
+    const id = e.target.closest("[data-game]")?.dataset.game;
+    if (id) playGame(id);
+  });
+}
+
+const TAG_LABELS = { flash: "Flash", emulator: "Emulator", port: "Ports", fnf: "FNF", dos: "DOS", tools: "Tools" };
+
+export async function renderGames(view, params) {
+  view.innerHTML = html`<h1>Games</h1><p class="sub">Loading catalog…</p>`.toString();
+  const cat = await loadCatalog();
+  const state = {
+    q: params.get("q") || "",
+    source: params.get("source") || "all",
+    tag: params.get("tag") || "",
+    shown: PAGE,
+  };
+
+  const counts = { gn: 0, c6x: 0 };
+  for (const g of cat.games) g.source === "gn-math" ? counts.gn++ : counts.c6x++;
+
+  view.innerHTML = html`
+    <h1>Games</h1>
+    <p class="sub">${cat.games.length.toLocaleString()} games from gn-math (${counts.gn}) and Classroom 6x (${counts.c6x}).</p>
+    ${cat.errors.map((e) => html`<div class="notice err">${e}</div>`)}
+    <div class="toolbar">
+      <input class="input" id="g-q" type="search" placeholder="Search games" value="${state.q}" aria-label="Search games" />
+    </div>
+    <div class="quick" id="g-filters" style="margin:0 0 18px"></div>
+    <div class="grid" id="g-grid"></div>
+    <div class="more"><button class="btn ghost" id="g-more" hidden>Show more</button></div>
+  `.toString();
+
+  const grid = $("#g-grid", view);
+  bindCardClicks(grid);
+
+  const filters = () => {
+    const f = favs();
+    const chips = [
+      ["source", "all", "All"],
+      ["source", "gn-math", "gn-math"],
+      ["source", "classroom-6x", "Classroom 6x"],
+      ["source", "favs", `Favorites${f.size ? ` (${f.size})` : ""}`],
+      ["source", "recent", "Recently played"],
+      ...Object.entries(TAG_LABELS).map(([t, l]) => ["tag", t, l]),
+    ];
+    $("#g-filters", view).innerHTML = chips
+      .map(([k, v, l]) => {
+        const on = k === "source" ? state.source === v : state.tag === v;
+        return `<button class="chip${on ? " on" : ""}" data-k="${k}" data-v="${esc(v)}">${esc(l)}</button>`;
+      })
+      .join("");
+  };
+
+  const list = () => {
+    let gs = cat.games;
+    if (state.source === "favs") {
+      const f = favs();
+      gs = gs.filter((g) => f.has(g.id));
+    } else if (state.source === "recent") {
+      gs = recents().map((id) => cat.byId.get(id)).filter(Boolean);
+    } else if (state.source !== "all") gs = gs.filter((g) => g.source === state.source);
+    if (state.tag) gs = gs.filter((g) => g.tags?.includes(state.tag));
+    const q = state.q.trim().toLowerCase();
+    if (q) gs = gs.filter((g) => g.name.toLowerCase().includes(q) || (g.author || "").toLowerCase().includes(q));
+    return gs;
+  };
+
+  const draw = () => {
+    const gs = list();
+    grid.innerHTML = gs.length
+      ? gs.slice(0, state.shown).map((g) => gameCard(g).toString()).join("")
+      : `<div class="empty" style="grid-column:1/-1">No games match.</div>`;
+    $("#g-more", view).hidden = gs.length <= state.shown;
+    const p = new URLSearchParams();
+    if (state.q) p.set("q", state.q);
+    if (state.source !== "all") p.set("source", state.source);
+    if (state.tag) p.set("tag", state.tag);
+    history.replaceState(null, "", "#/games" + (p.size ? "?" + p : ""));
+  };
+
+  let t;
+  $("#g-q", view).addEventListener("input", (e) => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      state.q = e.target.value;
+      state.shown = PAGE;
+      draw();
+    }, 120);
+  });
+  $("#g-filters", view).addEventListener("click", (e) => {
+    const b = e.target.closest("[data-k]");
+    if (!b) return;
+    if (b.dataset.k === "source") state.source = b.dataset.v;
+    else state.tag = state.tag === b.dataset.v ? "" : b.dataset.v;
+    state.shown = PAGE;
+    filters();
+    draw();
+  });
+  $("#g-more", view).addEventListener("click", () => {
+    state.shown += PAGE;
+    draw();
+  });
+  filters();
+  draw();
+}
+
+let currentGame = null;
+
+export async function playGame(id) {
+  const cat = await loadCatalog();
+  const g = cat.byId.get(id);
+  if (!g) return toast("Game not found.");
+  currentGame = g;
+  pushRecent(id);
+  const player = $("#player");
+  const stage = $("#player-stage");
+  $("#player-title").textContent = g.name;
+  updateFavButton();
+  stage.innerHTML = `<div class="loading">Loading ${esc(g.name)}…</div>`;
+  player.hidden = false;
+  document.body.style.overflow = "hidden";
+
+  try {
+    if (g.play.type === "html") {
+      const f = document.createElement("iframe");
+      f.allow = "fullscreen; autoplay; gamepad";
+      f.src = g.play.url;
+      stage.replaceChildren(f);
+      f.focus();
+    } else {
+      let target = g.play.url;
+      if (g.play.resolve) {
+        try {
+          target = (await (await fetch(g.play.resolve)).json()).url || target;
+        } catch {}
+      }
+      if (currentGame !== g) return;
+      const frame = await createProxiedFrame(target);
+      if (currentGame !== g) return;
+      stage.replaceChildren(frame.frame);
+      frame.frame.focus();
+    }
+  } catch (e) {
+    stage.innerHTML = `<div class="loading">${esc(e.message)}</div>`;
+  }
+}
+
+function updateFavButton() {
+  const b = $("#player [data-act='fav']");
+  if (b && currentGame) b.textContent = favs().has(currentGame.id) ? "★ Favorited" : "☆ Favorite";
+}
+
+export function initPlayer() {
+  const player = $("#player");
+  const bar = player.querySelector(".player-bar");
+  const fav = document.createElement("button");
+  fav.className = "btn ghost";
+  fav.dataset.act = "fav";
+  bar.insertBefore(fav, bar.querySelector("[data-act='fullscreen']"));
+  player.addEventListener("click", (e) => {
+    const act = e.target.closest("[data-act]")?.dataset.act;
+    if (act === "close") closePlayer();
+    if (act === "fullscreen") requestFullscreen($("#player-stage"));
+    if (act === "fav" && currentGame) {
+      const f = favs();
+      f.has(currentGame.id) ? f.delete(currentGame.id) : f.add(currentGame.id);
+      store.set("favs", [...f]);
+      updateFavButton();
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !player.hidden && !document.fullscreenElement) closePlayer();
+  });
+}
+
+function closePlayer() {
+  currentGame = null;
+  $("#player").hidden = true;
+  $("#player-stage").innerHTML = "";
+  document.body.style.overflow = "";
+}
+
+export { raw };
