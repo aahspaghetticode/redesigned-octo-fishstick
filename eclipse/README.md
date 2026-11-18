@@ -7,7 +7,9 @@ One site for browsing, games and media:
 - **Browse**: five proxy engines, picked per browser in Settings. **Scramjet** is the default; **Ultraviolet**, **Rammerhead**, **Corrosion** and **Womginx** are the alternatives.
 - **Games**: the gn-math catalog (about 850 games) plus a Classroom 6x catalog. Includes search, filters, favorites and recently played.
 - **Media**: a Jellyfin client with libraries, continue watching, next up, series and seasons, search, and HLS playback with progress sync.
-- **Server shell**: a browser terminal on the VPS, signed in with the root password. sshd checks the password; Eclipse never stores it.
+- **Server shell**: a hidden browser terminal on the VPS, reached by triple-clicking the invisible top-right corner of the page (route `/#/x`), signed in with the root password. sshd checks the password; Eclipse never stores it.
+
+First-party UI text and several API responses are served lightly obfuscated (`src/obf.js`) so network content filters can't classify the site by its visible text; the browser decodes them at runtime. This is obfuscation, not encryption, and does not hide the proxy data-path routes. See `prompt.md`.
 
 ## Hosting it
 

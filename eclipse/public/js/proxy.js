@@ -1,21 +1,19 @@
-// Proxy engines + the persistent Browse surface.
-import { $, esc, toast, store, requestFullscreen } from "./util.js";
+import { $, esc, toast, store, requestFullscreen, dec } from "./util.js";
 
 export const ENGINES = {
-  scramjet: { name: "Scramjet", desc: "Fastest and works on the most sites, including YouTube and Discord." },
-  ultraviolet: { name: "Ultraviolet", desc: "Mature service-worker proxy. A good fallback when a site breaks on Scramjet." },
-  rammerhead: { name: "Rammerhead", desc: "Rewrites pages on the server. Handles some login-heavy sites well." },
-  corrosion: { name: "Corrosion", desc: "Older server-side rewriter. Best for simple or older sites." },
-  womginx: { name: "Womginx", desc: "Lightweight nginx-based proxy. Quick on simple pages, weak on modern apps." },
+  scramjet: { name: dec("aBJkLEcCXgU="), desc: dec("fRBlOU8bT1F3I05ITB5kJllIVB82OUINGxx5Pl5ISBhiKFlEGxh4LkYdXxh4KgoxVARCOEgNGxB4KQosUgJ1IlgMFQ==") },
+  ultraviolet: { name: dec("bh1iP0seUh56KF4="), desc: dec("dhBiOFgNGwJzP1wBWBQ7OkUaUBRkbVoaVAlvYwopGxZ5Ik5IXRB6IUgJWBo2OkINVVF3bVkBTxQ2L1gNWhplbUUGGyJ1P0sFURRiYw==") },
+  rammerhead: { name: dec("aRB7IE8aUxR3KQ=="), desc: dec("aRRhP0McXgI2PUsPXgI2IkRITxlzbVkNSQdzPwRIcxB4KUYNSFFlIkcNGx15KkMGFhlzLFwRGwJ/OU8bGwZzIUZG") },
+  corrosion: { name: dec("eB5kP0UbUh54"), desc: dec("dB1yKFhISBRkO08aFgJ/KU9ISRRhP0McXgM4bWgNSAU2K0UaGwJ/IFoEXlF5PwoHVxVzPwobUgVzPgQ=") },
+  womginx: { name: dec("bB57KkMGQw=="), desc: dec("dxhxJV4fXhhxJV5IVRZ/I1JFWRBlKE5ISwN5NVNGGyBjJEkDGx54bVkBVgF6KAoYWhZzPgZITBR3JgoHVVF7Ik4NSR82LFoYSF8=") },
 };
 export const DEFAULT_ENGINE = "scramjet";
-
-// ---------- engine status ----------
 
 let statusPromise = null;
 export function engineStatus() {
   statusPromise ||= fetch("/api/engines")
-    .then((r) => r.json())
+    .then((r) => r.text())
+    .then((t) => JSON.parse(dec(t)))
     .catch(() => ({ scramjet: { ok: true }, ultraviolet: { ok: true } }));
   return statusPromise;
 }
@@ -30,7 +28,6 @@ export function setEngine(e) {
   document.querySelectorAll("select[data-engine-select]").forEach((s) => (s.value = e));
 }
 
-/** Fill a <select> with the engines and keep it in sync with the setting. */
 export async function bindEngineSelect(select, onChange) {
   const st = await engineStatus();
   select.dataset.engineSelect = "";
@@ -44,8 +41,6 @@ export async function bindEngineSelect(select, onChange) {
   });
 }
 
-// ---------- service worker engines (Scramjet, Ultraviolet) ----------
-
 let swReady = null;
 let scramjet = null;
 const wispUrl = () => (location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/wisp/";
@@ -56,12 +51,12 @@ function ensureServiceWorker() {
     if (!("serviceWorker" in navigator)) {
       throw new Error(
         location.protocol !== "https:"
-          ? "This engine needs HTTPS. Open Eclipse over https:// (browsers turn service workers off on plain http)."
-          : "This browser doesn't support service workers."
+          ? dec("bxl/PgoNVRZ/I09IVRRzKVlIcyVCHXlGGz5mKERIfhJ6JFobXlF5O08aGxliOVobAV45bQIKSR5hPk8aSFFiOFgGGwJzP1wBWBQ2OkUaUBRkPgoHXRc2IkRISx13JERIUwViPQNG")
+          : dec("bxl/PgoKSR5hPk8aGxV5KFkGHAU2Pl8YSx5kOQobXgNgJEkNGwZ5P0ENSQI4")
       );
     }
     if (typeof $scramjetLoadController !== "function" || typeof BareMux === "undefined") {
-      throw new Error("Proxy scripts failed to load. Reload the page.");
+      throw new Error(dec("awN5NVNISBJkJFocSFFwLEMEXhU2OUVIVx53KQRIaRR6IksMGwV+KAoYWhZzYw=="));
     }
     const { ScramjetController } = $scramjetLoadController();
     scramjet = new ScramjetController({
@@ -81,8 +76,6 @@ function ensureServiceWorker() {
 }
 export const warmUp = () => ensureServiceWorker().catch(() => {});
 
-// ---------- per-engine URL building ----------
-
 const xor = (s) =>
   encodeURIComponent(
     s
@@ -96,7 +89,7 @@ const unxor = (s) =>
     .map((c, i) => (i % 2 ? String.fromCharCode(c.charCodeAt(0) ^ 2) : c))
     .join("");
 
-async function rammerheadSession() {
+async function rhSession() {
   let id = store.get("rh:session");
   if (id) {
     const exists = await fetch(`/sessionexists?id=${id}`).then((r) => r.text()).catch(() => "");
@@ -104,21 +97,19 @@ async function rammerheadSession() {
   }
   if (!id) {
     const r = await fetch("/newsession");
-    if (!r.ok) throw new Error("Rammerhead couldn't create a session.");
+    if (!r.ok) throw new Error(dec("aRB7IE8aUxR3KQoLVAR6KURPT1F1P08JTxQ2LAobXgJlJEUGFQ=="));
     id = (await r.text()).trim();
     store.set("rh:session", id);
   }
-  // Eclipse keeps URL shuffling off so the server can vet destinations.
   await fetch(`/editsession?id=${id}&enableShuffling=0`).catch(() => {});
   return id;
 }
-export function resetRammerhead() {
+export function resetRh() {
   const id = store.get("rh:session");
   store.del("rh:session");
   if (id) fetch(`/deletesession?id=${id}`).catch(() => {});
 }
 
-/** Proxied src for iframe-based engines. */
 async function proxiedSrc(engine, url) {
   const st = await engineStatus();
   if (!st[engine]?.ok) throw new Error(`${ENGINES[engine].name} is turned off on this server${st[engine]?.reason ? ` (${st[engine].reason})` : ""}.`);
@@ -127,7 +118,7 @@ async function proxiedSrc(engine, url) {
       await ensureServiceWorker();
       return __uv$config.prefix + __uv$config.encodeUrl(url);
     case "rammerhead":
-      return `/${await rammerheadSession()}/${url}`;
+      return `/${await rhSession()}/${url}`;
     case "corrosion":
       return `/corrosion/${xor(url)}`;
     case "womginx": {
@@ -138,7 +129,6 @@ async function proxiedSrc(engine, url) {
   throw new Error("Unknown engine");
 }
 
-/** Read the real URL back out of a same-origin proxied iframe. */
 function decodeFrameUrl(engine, frame) {
   try {
     const loc = frame.contentWindow.location;
@@ -150,7 +140,6 @@ function decodeFrameUrl(engine, frame) {
   return null;
 }
 
-/** Turn whatever the user typed into a URL. */
 export function toUrl(input) {
   const s = input.trim();
   if (!s) return null;
@@ -159,10 +148,6 @@ export function toUrl(input) {
   return store.get("search", "https://duckduckgo.com/?q=%s").replace("%s", encodeURIComponent(s));
 }
 
-/**
- * A proxied iframe for the game player, using the chosen engine (Scramjet if
- * the chosen one is off).
- */
 export async function createProxiedFrame(url) {
   const st = await engineStatus();
   const engine = st[currentEngine()]?.ok ? currentEngine() : DEFAULT_ENGINE;
@@ -178,8 +163,6 @@ export async function createProxiedFrame(url) {
   iframe.src = await proxiedSrc(engine, url);
   return iframe;
 }
-
-// ---------- Browse surface ----------
 
 const tab = { engine: null, sj: null, iframe: null, url: "" };
 const holder = () => $("#browser-frame");
@@ -202,8 +185,8 @@ function showMessage(title, body, actions = "") {
 function blankState() {
   const engine = ENGINES[currentEngine()].name;
   showMessage(
-    "Browse privately",
-    `Type an address or a search above. Pages load through this server using <strong style="color:var(--text)">${esc(engine)}</strong>.`,
+    dec("eQN5OlkNGwFkJFwJTxR6NA=="),
+    `${dec("bwhmKAoJVVF3KU4aXgJlbUUaGxA2Pk8JSRJ+bUsKVAdzYwo4WhZzPgoEVBBybV4ASR5jKkJITxl/PgobXgNgKFhITgJ/I01I")}<strong style="color:var(--text)">${esc(engine)}</strong>.`,
     `<div class="quick">${[
       ["YouTube", "https://www.youtube.com"],
       ["Discord", "https://discord.com/app"],
@@ -299,7 +282,7 @@ export function initBrowser() {
         try {
           tab.iframe.contentWindow.location.reload();
         } catch {
-          tab.iframe.src = tab.iframe.src; // cross-origin (Womginx): reload the entry page
+          tab.iframe.src = tab.iframe.src;
         }
       } else tab.iframe.contentWindow.history[act]();
     } catch {

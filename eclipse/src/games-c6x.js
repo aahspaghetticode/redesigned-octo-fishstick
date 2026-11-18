@@ -9,6 +9,8 @@ import express from "express";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { cached, fetchFirst } from "./cache.js";
+import { sendObf } from "./obf.js";
+import { isBlockedUrl } from "./netguard.js";
 
 const HOUR = 3600 * 1000;
 const BASE = new URL(process.env.CLASSROOM6X_URL || "https://classroom6x.com/");
@@ -140,16 +142,9 @@ c6xRouter.get("/", async (_req, res) => {
         },
       };
     });
-    res
-      .set("Cache-Control", "public, max-age=600")
-      .json({ source: "classroom-6x", count: games.length, games });
+    sendObf(res, { source: "classroom-6x", count: games.length, games });
   } catch (e) {
-    res
-      .status(502)
-      .json({
-        error: `Classroom 6x catalog unavailable: ${e.message}`,
-        games: [],
-      });
+    res.status(502).json({ error: `Source B unavailable: ${e.message}`, games: [] });
   }
 });
 
@@ -190,11 +185,13 @@ async function pageInfo(u) {
 
 c6xRouter.get("/resolve", async (req, res) => {
   const u = String(req.query.u || "");
-  if (!sameSite(u))
-    return res.status(400).json({ error: "not a Classroom 6x URL" });
+  if (!sameSite(u)) return res.status(400).json({ error: "invalid target" });
   try {
     const info = await pageInfo(u);
-    res.json({ url: info.game || u, page: u, title: info.title });
+    // Defence in depth: the proxy engines already refuse private hosts, but
+    // don't even hand back an embed URL that points at an internal address.
+    const embed = info.game && !(await isBlockedUrl(info.game)) ? info.game : u;
+    res.json({ url: embed, page: u, title: info.title });
   } catch {
     res.json({ url: u, page: u });
   }
@@ -205,7 +202,10 @@ c6xRouter.get("/cover", async (req, res) => {
   if (!sameSite(u)) return res.sendStatus(400);
   try {
     const info = await pageInfo(u);
-    if (!info.image) return res.sendStatus(404);
+    if (!info.image || !/^https?:\/\//i.test(info.image)) return res.sendStatus(404);
+    // The cover URL comes from the page's og:image, so vet it before the
+    // server fetches it: never let it point at the host or a private network.
+    if (await isBlockedUrl(info.image)) return res.sendStatus(404);
     const img = await cached(
       `c6x:img:${info.image}`,
       30 * 24 * HOUR,

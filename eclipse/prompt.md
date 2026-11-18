@@ -42,7 +42,7 @@ One Node.js app (Express) behind Caddy:
 | gn-math games | Node mirrors and caches gn-math's GitHub repos | `/api/games/gn` |
 | Classroom 6x games | Node scraper (section 6) | `/api/games/c6x` |
 | Jellyfin client | Node reverse-proxies to `JELLYFIN_URL` | `/jf/*` |
-| Server shell | Node logs in to `127.0.0.1:22` over SSH | `/#/shell`, WebSocket `/shell/ws` |
+| Server shell | Node logs in to `127.0.0.1:22` over SSH | `/#/x` (hidden), WebSocket `/x/ws`, status `/api/x/status` |
 
 Files on the server:
 
@@ -103,9 +103,12 @@ journalctl -u eclipse -n 30 --no-pager      # expect "Eclipse listening ... [scr
 
 # HTTPS with a real certificate (no -k)
 curl -fsS https://$D/api/health                          # {"ok":true}
-curl -fsS https://$D/api/engines                         # every engine "ok":true
-curl -fsS https://$D/api/games/gn | head -c 200          # count over 800
-curl -fsS https://$D/api/shell/status                    # {"enabled":true,"user":"root"}
+# Several API responses are lightly obfuscated so a content filter can't read
+# them in transit (see "A note on the obfuscation" below). Decode with this helper:
+dco() { node -e 'const K=[59,113,22,77,42,104];let b="";process.stdin.on("data",d=>b+=d).on("end",()=>{const z=Buffer.from(b.trim(),"base64");process.stdout.write(Buffer.from(z.map((v,i)=>v^K[i%6])).toString("utf8"))})'; }
+curl -fsS https://$D/api/engines | dco; echo                 # every engine "ok":true
+curl -fsS https://$D/api/games/gn | dco | head -c 200; echo  # source gn-math, count over 800
+curl -fsS https://$D/api/x/status | dco; echo                # {"enabled":true,"user":"root"}
 
 # Wisp WebSocket (Scramjet + Ultraviolet need this): expect "101"
 curl -s -o /dev/null -w '%{http_code}\n' --http1.1 -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
@@ -134,7 +137,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -b 'womginx_are_you_a_bot=no' "https://
 read -rs ECLIPSE_PW && export ECLIPSE_PW
 cd /opt/eclipse && D=$D node --input-type=module -e '
 import WebSocket from "ws";
-const ws = new WebSocket(`wss://${process.env.D}/shell/ws`, { headers: { Origin: `https://${process.env.D}` } });
+const ws = new WebSocket(`wss://${process.env.D}/x/ws`, { headers: { Origin: `https://${process.env.D}` } });
 ws.on("open", () => ws.send(JSON.stringify({ t: "auth", password: process.env.ECLIPSE_PW, cols: 100, rows: 30 })));
 ws.on("message", (d, bin) => bin ? process.stdout.write(d) : console.log("[ctl]", d.toString()));
 setTimeout(() => ws.send(JSON.stringify({ t: "in", d: "echo ECLIPSE_SHELL_OK; exit\r" })), 2000);
@@ -144,9 +147,13 @@ unset ECLIPSE_PW
 
 Expect `[ctl] {"t":"ready",...}` and then `ECLIPSE_SHELL_OK` in the output.
 
+### A note on the obfuscation
+
+To keep school/work content filters from classifying the site by its visible text, the first-party UI text, comments, and a few API responses (`/api/engines`, `/api/games/gn`, `/api/games/c6x`, `/api/x/status`) are served lightly obfuscated (XOR + base64, see `src/obf.js` and `dec()` in `public/js/util.js`); the browser decodes them at runtime. This is **obfuscation, not encryption** — a filter that base64-decodes everything can still read it, and it does **not** hide the proxy data-path routes (`/scramjet/`, `/corrosion/`, `/wisp/`, `/rammerhead.js`, …) or the vendored engine bundles, which still carry their names. Don't "fix" the encoded responses back to plain JSON, and when you verify endpoints, pipe them through the `dco` helper above. If the owner wants deeper evasion, the data-path routes can be renamed next; note it, don't attempt it blindly.
+
 ## 5. Server shell
 
-The shell at `https://<domain>/#/shell` (linked from Settings) is a browser terminal. When someone connects, Node opens an SSH session to `127.0.0.1:22` as `SHELL_USER` (default `root`) with the password they typed. **sshd checks the password; Eclipse never stores it.** So changing the password with `passwd` changes the shell login too.
+The shell lives at `https://<domain>/#/x` and is **deliberately hidden**: there is no visible link to it. It is reached by an invisible button in the **top-right corner of the screen** — triple-click that corner (or press and hold it) and the Console login opens. When someone connects, Node opens an SSH session to `127.0.0.1:22` as `SHELL_USER` (default `root`) with the password they typed. **sshd checks the password; Eclipse never stores it.** So changing the password with `passwd` changes the shell login too. Do not add a visible link back to it.
 
 Protections already in `src/shell.js`:
 

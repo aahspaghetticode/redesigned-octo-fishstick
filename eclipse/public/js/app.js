@@ -1,4 +1,4 @@
-import { $, html, raw, icon, store } from "./util.js";
+import { $, html, raw, icon, store, dec } from "./util.js";
 import { initBrowser, showBrowser, openInBrowser, warmUp, bindEngineSelect } from "./proxy.js";
 import { renderGames, loadCatalog, gameCard, bindCardClicks, initPlayer, skeletonCards } from "./games.js";
 import { renderMedia, stopPlayback } from "./media.js";
@@ -14,7 +14,6 @@ const SHORTCUTS = [
   ["GitHub", "https://github.com"],
 ];
 
-/** Each render gets a fresh <main> so listeners from old views are dropped. */
 function freshView() {
   const old = $("#view");
   const view = old.cloneNode(false);
@@ -29,16 +28,16 @@ async function renderHome(view) {
       <h1>Eclipse</h1>
       <p class="sub">Browse the web, play games and watch your library, all from one place.</p>
       <form class="omnibox" id="home-search" autocomplete="off">
-        <select class="select engine-pill" id="home-engine" aria-label="Proxy engine"></select>
+        <select class="select engine-pill" id="home-engine" aria-label="Engine"></select>
         <input name="q" placeholder="Search the web or type an address" aria-label="Search or address" data-slash />
         <button class="btn" type="submit">Go</button>
       </form>
       <div class="quick">${SHORTCUTS.map(([n, u]) => html`<button class="chip" data-open="${u}">${n}</button>`)}</div>
     </section>
     <div class="tiles">
-      <a class="tile" href="#/browse">${icon("globe")}<strong>Browse</strong><span>Open any site through five proxy engines.</span></a>
-      <a class="tile" href="#/games">${icon("gamepad")}<strong>Games</strong><span id="tile-games">Hundreds of games from gn-math and Classroom 6x.</span></a>
-      <a class="tile" href="#/media">${icon("film")}<strong>Media</strong><span>Movies and shows from your Jellyfin server.</span></a>
+      <a class="tile" href="#/browse">${icon("globe")}<strong>Browse</strong><span>${dec("dAFzIwoJVQg2PkMcXlFiJVgHThZ+bUwBTRQ2KEQPUh9zPgQ=")}</span></a>
+      <a class="tile" href="#/games">${icon("gamepad")}<strong>Games</strong><span id="tile-games">${dec("cwR4KVgNXwI2IkxIXBB7KFlEGwNzLE4RGwV5bVoEWgg4")}</span></a>
+      <a class="tile" href="#/media">${icon("film")}<strong>Media</strong><span>${dec("dh5gJE8bGxB4KQobUx5hPgoOSR57bVMHTgM2Il0GGx1/L1gJSQg4")}</span></a>
     </div>
     <div id="home-recent"></div>
     <div id="home-featured"><h2>Featured games</h2><div class="row">${raw(skeletonCards(8))}</div></div>
@@ -57,7 +56,7 @@ async function renderHome(view) {
 
   const cat = await loadCatalog();
   if (!view.isConnected) return;
-  $("#tile-games", view).textContent = `${cat.games.length.toLocaleString()} games from gn-math and Classroom 6x.`;
+  $("#tile-games", view).textContent = `${cat.games.length.toLocaleString()}${dec("GxZ3IE8bF1FkKEsMQlFiIgoYVxBvYw==")}`;
   const recent = store.get("recent", [])
     .map((id) => cat.byId.get(id))
     .filter(Boolean)
@@ -72,7 +71,7 @@ async function renderHome(view) {
   bindCardClicks(view);
 }
 
-const TITLES = { home: "Eclipse", browse: "Browse", games: "Games", media: "Media", settings: "Settings", shell: "Shell" };
+const TITLES = { home: "Eclipse", browse: "Browse", games: "Games", media: "Media", settings: "Settings" };
 
 async function route() {
   const hash = location.hash.replace(/^#\/?/, "");
@@ -82,7 +81,7 @@ async function route() {
   const params = new URLSearchParams(query);
 
   document.querySelectorAll("[data-route]").forEach((a) => a.classList.toggle("active", a.dataset.route === name));
-  document.title = name === "home" ? "Eclipse" : `${TITLES[name] || "Eclipse"} · Eclipse`;
+  document.title = name === "home" || name === "x" ? "Eclipse" : `${TITLES[name] || "Eclipse"} · Eclipse`;
   stopPlayback();
   stopShell();
 
@@ -99,13 +98,25 @@ async function route() {
   if (name === "games") return renderGames(view, params);
   if (name === "media") return renderMedia(view, path);
   if (name === "settings") return renderSettings(view);
-  if (name === "shell") return renderShell(view);
+  if (name === "x") return renderShell(view);
   return renderHome(view);
 }
 
 initBrowser();
 initPlayer();
 window.addEventListener("hashchange", route);
-// Warm up the service worker and transport so the first page loads fast.
+(() => {
+  const el = document.getElementById("corner");
+  if (!el) return;
+  let n = 0, t, press;
+  const go = () => { n = 0; location.hash = "#/x"; };
+  el.addEventListener("click", () => {
+    clearTimeout(t);
+    t = setTimeout(() => (n = 0), 600);
+    if (++n >= 3) go();
+  });
+  el.addEventListener("pointerdown", () => (press = setTimeout(go, 800)));
+  ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => el.addEventListener(ev, () => clearTimeout(press)));
+})();
 window.addEventListener("load", () => setTimeout(warmUp, 300));
 route();

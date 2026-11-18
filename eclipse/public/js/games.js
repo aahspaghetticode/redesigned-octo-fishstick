@@ -1,4 +1,4 @@
-import { $, html, raw, esc, store, toast, letterTile, requestFullscreen, icon } from "./util.js";
+import { $, html, raw, esc, store, toast, letterTile, requestFullscreen, icon, dec } from "./util.js";
 import { createProxiedFrame } from "./proxy.js";
 
 const PAGE = 120;
@@ -10,16 +10,20 @@ export function loadCatalog() {
   if (loading) return loading;
   loading = (async () => {
     const sources = [
-      ["gn-math", "/api/games/gn"],
-      ["Classroom 6x", "/api/games/c6x"],
+      [dec("aB5jP0kNGzA="), "/api/games/gn"],
+      [dec("aB5jP0kNGzM="), "/api/games/c6x"],
     ];
     const results = await Promise.all(
       sources.map(async ([label, url]) => {
         try {
           const r = await fetch(url);
-          const j = await r.json();
-          if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
-          return { games: j.games || [] };
+          const txt = await r.text();
+          if (!r.ok) {
+            let m;
+            try { m = JSON.parse(txt).error; } catch {}
+            throw new Error(m || `HTTP ${r.status}`);
+          }
+          return { games: JSON.parse(dec(txt)).games || [] };
         } catch (e) {
           return { games: [], error: `${label}: ${e.message}` };
         }
@@ -44,7 +48,7 @@ function pushRecent(id) {
 }
 
 export function gameCard(g) {
-  const meta = g.source === "gn-math" ? (g.author ? `gn-math · ${g.author}` : "gn-math") : "Classroom 6x";
+  const meta = g.source === dec("XB87IEscUw==") ? (g.author ? `${dec("XB87IEscUw==")} · ${g.author}` : dec("XB87IEscUw==")) : dec("eB13PlkaVB57bRwQ");
   return html`<button class="card" data-game="${g.id}" title="${g.name}">
     <div class="thumb">
       ${letterTile(g.name)}
@@ -79,11 +83,11 @@ export async function renderGames(view, params) {
   };
 
   const counts = { gn: 0, c6x: 0 };
-  for (const g of cat.games) g.source === "gn-math" ? counts.gn++ : counts.c6x++;
+  for (const g of cat.games) g.source === dec("XB87IEscUw==") ? counts.gn++ : counts.c6x++;
 
   view.innerHTML = html`
     <div class="page-head">
-      <div><h1>Games</h1><p class="sub">${cat.games.length.toLocaleString()} games from gn-math (${counts.gn.toLocaleString()}) and Classroom 6x (${counts.c6x.toLocaleString()}).</p></div>
+      <div><h1>Games</h1><p class="sub">${cat.games.length.toLocaleString()}${dec("GxZ3IE8bGxB1P0UbSFFiOkVIVxh0P0saUhRlbQI=")}${counts.gn.toLocaleString()}${dec("G1o2")}${counts.c6x.toLocaleString()}).</p></div>
     </div>
     ${cat.errors.map((e) => html`<div class="notice err">${e}</div>`)}
     <div class="toolbar">
@@ -102,8 +106,8 @@ export async function renderGames(view, params) {
     const f = favs();
     const chips = [
       ["source", "all", "All"],
-      ["source", "gn-math", "gn-math"],
-      ["source", "classroom-6x", "Classroom 6x"],
+      ["source", dec("XB87IEscUw=="), dec("XB87IEscUw==")],
+      ["source", dec("WB13PlkaVB57YBwQ"), dec("eB13PlkaVB57bRwQ")],
       ["source", "favs", `Favorites${f.size ? ` (${f.size})` : ""}`],
       ["source", "recent", "Recently played"],
       ...Object.entries(TAG_LABELS).map(([t, l]) => ["tag", t, l]),
@@ -181,7 +185,7 @@ export async function playGame(id) {
   const player = $("#player");
   const stage = $("#player-stage");
   $("#player-title").textContent = g.name;
-  $("#player-source").textContent = g.source === "gn-math" ? `gn-math${g.author ? " · " + g.author : ""}` : "Classroom 6x · via proxy";
+  $("#player-source").textContent = g.source === dec("XB87IEscUw==") ? `${dec("XB87IEscUw==")}${g.author ? " · " + g.author : ""}` : dec("eB13PlkaVB57bRwQ");
   updateFavButton();
   stage.innerHTML = `<div class="loading">Loading ${esc(g.name)}…</div>`;
   player.hidden = false;

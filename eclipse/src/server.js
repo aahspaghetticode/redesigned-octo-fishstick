@@ -12,6 +12,7 @@ import { c6xRouter } from "./games-c6x.js";
 import { jellyfinRouter } from "./jellyfin.js";
 import { initEngines, engineStatus, handleEngineRequest, handleEngineUpgrade } from "./engines.js";
 import { handleShellUpgrade, shellStatus } from "./shell.js";
+import { sendObf } from "./obf.js";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const PORT = parseInt(process.env.PORT || "8080", 10);
@@ -32,6 +33,13 @@ const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", "loopback");
 
+app.use((_req, res, next) => {
+  res.set("X-Content-Type-Options", "nosniff");
+  res.set("Referrer-Policy", "no-referrer");
+  res.set("X-Frame-Options", "SAMEORIGIN");
+  next();
+});
+
 const staticOpts = { maxAge: "1h" };
 const vendor = (p) => path.join(root, "node_modules", p);
 app.use("/scram/", express.static(scramjetPath, staticOpts));
@@ -45,8 +53,8 @@ app.use("/vendor/xterm/", express.static(vendor("@xterm/xterm"), staticOpts));
 app.use("/vendor/xterm-fit/", express.static(vendor("@xterm/addon-fit/lib"), staticOpts));
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
-app.get("/api/engines", (_req, res) => res.set("Cache-Control", "no-cache").json(engineStatus()));
-app.get("/api/shell/status", (_req, res) => res.set("Cache-Control", "no-cache").json(shellStatus()));
+app.get("/api/engines", (_req, res) => sendObf(res, engineStatus(), 0));
+app.get("/api/x/status", (_req, res) => sendObf(res, shellStatus(), 0));
 app.use("/api/games/gn", gnRouter);
 app.use("/api/games/c6x", c6xRouter);
 app.use("/jf", jellyfinRouter);
@@ -67,7 +75,7 @@ const server = createServer((req, res) => {
 server.on("upgrade", (req, socket, head) => {
   socket.on("error", () => socket.destroy());
   if (req.url.endsWith("/wisp/")) return wisp.routeRequest(req, socket, head);
-  if (req.url.startsWith("/shell/ws")) return handleShellUpgrade(req, socket, head);
+  if (req.url.startsWith("/x/ws")) return handleShellUpgrade(req, socket, head);
   if (handleEngineUpgrade(req, socket, head)) return;
   socket.destroy();
 });

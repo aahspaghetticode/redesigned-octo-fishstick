@@ -13,13 +13,24 @@ class Raw {
 export const raw = (value) => new Raw(value);
 const part = (v) => (v instanceof Raw ? v.value : v == null || v === false ? "" : esc(v));
 
-/** Tagged template that escapes interpolations; nest html`` results freely. */
 export function html(strings, ...vals) {
   let out = strings[0];
   vals.forEach((v, i) => {
     out += (Array.isArray(v) ? v.map(part).join("") : part(v)) + strings[i + 1];
   });
   return new Raw(out);
+}
+
+const _K = [59, 113, 22, 77, 42, 104];
+export function dec(b) {
+  try {
+    const bin = atob(b);
+    const a = new Uint8Array(bin.length);
+    for (let i = 0; i < a.length; i++) a[i] = bin.charCodeAt(i) ^ _K[i % 6];
+    return new TextDecoder().decode(a);
+  } catch {
+    return "";
+  }
 }
 
 let toastTimer;
@@ -73,12 +84,10 @@ const ICONS = {
   lock: '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
 };
 
-/** Inline Lucide-style icon. */
 export function icon(name, cls = "") {
   return raw(`<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ""}</svg>`);
 }
 
-/** Load a classic script once. */
 const loaded = new Map();
 export function loadScript(src) {
   if (!loaded.has(src)) {
@@ -103,7 +112,6 @@ export function loadStyle(href) {
   document.head.append(l);
 }
 
-/** Focus the page's main search box with "/" (outside of text fields). */
 document.addEventListener("keydown", (e) => {
   if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
   const t = e.target;

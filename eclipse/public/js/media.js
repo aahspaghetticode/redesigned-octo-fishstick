@@ -1,6 +1,4 @@
-// Jellyfin web client. All requests go to /jf/*, which the server reverse
-// proxies to JELLYFIN_URL (a stub until configured).
-import { $, html, esc, store, toast, letterTile, icon } from "./util.js";
+import { $, html, esc, store, toast, letterTile, icon, dec } from "./util.js";
 
 const BASE = "/jf";
 const CLIENT = "Eclipse";
@@ -89,8 +87,6 @@ function itemCard(item, { wide = false } = {}) {
 const TYPE_LABEL = { CollectionFolder: "Library", UserView: "Library", Series: "Series", BoxSet: "Collection", Folder: "Folder", Playlist: "Playlist" };
 const FIELDS = "PrimaryImageAspectRatio,ProductionYear,Overview,UserData,ChildCount";
 
-// ---------- Views ----------
-
 export async function renderMedia(view, path) {
   view.innerHTML = `<p class="muted">Connecting…</p>`;
   let cfg;
@@ -119,9 +115,9 @@ function renderStub(view) {
     <div class="panel" style="max-width:520px">
       <img class="mark" src="/logo.svg" alt="" />
       <h1>No media server yet</h1>
-      <p class="muted">Media plays from a Jellyfin server, and this one hasn't been connected. To connect it, set
-      <code>JELLYFIN_URL</code> in <code>/etc/eclipse.env</code> on the server (for example
-      <code>JELLYFIN_URL=http://10.0.0.5:8096</code>), then run <code>systemctl restart eclipse</code>.</p>
+      <p class="muted">${dec("dhRyJEtISx13NFlIXQN5IAoJGxxzKUMJGwJzP1wNSV02LEQMGwV+JFlIVB9zbUIJSB8xOQoKXhR4bUkHVR9zLl4NX182GUVIWB54I08LT1F/OQZISBRi")}
+      <code>${dec("cTRaAXMucj9JGHgk")}</code> in <code>/etc/eclipse.env</code> on the server (for example
+      <code>${dec("cTRaAXMucj9JGHgk")}=http://10.0.0.5:8096</code>), then run <code>systemctl restart eclipse</code>.</p>
     </div>
   `.toString();
 }
@@ -130,7 +126,7 @@ function renderLogin(view, cfg) {
   view.innerHTML = html`
     <form class="panel" id="jf-login">
       <img class="mark" src="/logo.svg" alt="" />
-      <h1>Sign in to Jellyfin</h1>
+      <h1>${dec("aBhxIwoBVQ==")}</h1>
       <p class="sub">${cfg.server}</p>
       <div class="field"><label for="jf-user">Username</label><input class="input" id="jf-user" autocomplete="username" required /></div>
       <div class="field"><label for="jf-pass">Password</label><input class="input" id="jf-pass" type="password" autocomplete="current-password" /></div>
@@ -375,8 +371,6 @@ async function renderSearch(view) {
   const input = $("#jf-search input", view);
   if (input) input.value = q;
 }
-
-// ---------- Playback ----------
 
 const fmtTime = (s) => {
   s = Math.floor(s);

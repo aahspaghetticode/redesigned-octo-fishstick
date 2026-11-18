@@ -3,6 +3,7 @@
 // when the upstream CDN is filtered on the client's network.
 import express from "express";
 import { cached, fetchFirst } from "./cache.js";
+import { sendObf } from "./obf.js";
 
 const DAY = 24 * 3600 * 1000;
 const SOURCES = {
@@ -49,9 +50,9 @@ gnRouter.get("/", async (_req, res) => {
         play: { type: "html", url: `/api/games/gn/html/${html}` },
       });
     }
-    res.set("Cache-Control", "public, max-age=600").json({ source: "gn-math", count: games.length, games });
+    sendObf(res, { source: "gn-math", count: games.length, games });
   } catch (e) {
-    res.status(502).json({ error: `gn-math catalog unavailable: ${e.message}` });
+    res.status(502).json({ error: `Source A unavailable: ${e.message}` });
   }
 });
 

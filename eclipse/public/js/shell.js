@@ -1,5 +1,4 @@
-// Server shell: xterm.js in the browser, SSH on the server (see src/shell.js).
-import { $, html, toast, loadScript, loadStyle } from "./util.js";
+import { $, html, toast, loadScript, loadStyle, dec } from "./util.js";
 
 let active = null; // { ws, term, onResize }
 
@@ -14,62 +13,63 @@ export function stopShell() {
 }
 
 export async function renderShell(view) {
-  const status = await fetch("/api/shell/status")
-    .then((r) => r.json())
+  const status = await fetch("/api/x/status")
+    .then((r) => r.text())
+    .then((t) => JSON.parse(dec(t)))
     .catch(() => ({ enabled: false }));
 
   if (!status.enabled) {
     view.innerHTML = html`<div class="panel" style="max-width:520px">
       <img class="mark" src="/logo.svg" alt="" />
-      <h1>Server shell is off</h1>
+      <h1>${dec("dR5ibUseWhh6LEgEXg==")}</h1>
       <p class="muted">Set <code>SHELL_ENABLED=true</code> in <code>/etc/eclipse.env</code> and run <code>systemctl restart eclipse</code> to turn it on.</p>
     </div>`.toString();
     return;
   }
 
   view.innerHTML = html`
-    <form class="panel" id="shell-login" autocomplete="off">
+    <form class="panel" id="cx-login" autocomplete="off">
       <img class="mark" src="/logo.svg" alt="" />
-      <h1>Server shell</h1>
+      <h1>${dec("eB54PkUEXg==")}</h1>
       <p class="sub">Signs in to this server as <code>${status.user}</code>. Use that account's password.</p>
       <div class="field">
-        <label for="shell-pass">Password for ${status.user}</label>
-        <input class="input" id="shell-pass" type="password" autocomplete="current-password" required />
+        <label for="cx-pass">Password for ${status.user}</label>
+        <input class="input" id="cx-pass" type="password" autocomplete="current-password" required />
       </div>
-      <div class="notice err" id="shell-err" hidden></div>
-      <button class="btn" type="submit">Connect</button>
+      <div class="notice err" id="cx-err" hidden></div>
+      <button class="btn" type="submit">${dec("eB54I08LTw==")}</button>
     </form>`.toString();
-  $("#shell-pass", view).focus();
+  $("#cx-pass", view).focus();
 
-  $("#shell-login", view).addEventListener("submit", async (e) => {
+  $("#cx-login", view).addEventListener("submit", async (e) => {
     e.preventDefault();
-    const btn = e.submitter || $("#shell-login button", view);
-    const err = $("#shell-err", view);
+    const btn = e.submitter || $("#cx-login button", view);
+    const err = $("#cx-err", view);
     err.hidden = true;
     btn.disabled = true;
-    btn.textContent = "Connecting…";
+    btn.textContent = dec("eB54I08LTxh4KsjonQ==");
     try {
       loadStyle("/vendor/xterm/css/xterm.css");
       await loadScript("/vendor/xterm/lib/xterm.js");
       await loadScript("/vendor/xterm-fit/addon-fit.js");
-      await connect(view, $("#shell-pass", view).value, status.user, (msg) => {
+      await connect(view, $("#cx-pass", view).value, status.user, (msg) => {
         err.textContent = msg;
         err.hidden = false;
         btn.disabled = false;
-        btn.textContent = "Connect";
+        btn.textContent = dec("eB54I08LTw==");
       });
     } catch (ex) {
       err.textContent = ex.message;
       err.hidden = false;
       btn.disabled = false;
-      btn.textContent = "Connect";
+      btn.textContent = dec("eB54I08LTw==");
     }
   });
 }
 
 function connect(view, password, user, onDenied) {
   return new Promise((resolve) => {
-    const ws = new WebSocket((location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/shell/ws");
+    const ws = new WebSocket((location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/x/ws");
     ws.binaryType = "arraybuffer";
     let term = null;
     let fit = null;
@@ -77,7 +77,7 @@ function connect(view, password, user, onDenied) {
 
     ws.onopen = () => ws.send(JSON.stringify({ t: "auth", password, cols: 120, rows: 32 }));
     ws.onerror = () => {
-      if (!opened) onDenied("Couldn't reach the shell service.");
+      if (!opened) onDenied(dec("eB5jIU4GHAU2P08JWBk2OUINGwJzP1wBWBQ4"));
     };
     ws.onmessage = (ev) => {
       if (typeof ev.data !== "string") {
@@ -100,7 +100,7 @@ function connect(view, password, user, onDenied) {
       }
     };
     ws.onclose = () => {
-      if (opened) ended(view, "Disconnected.");
+      if (opened) ended(view, dec("fxhlLkUGVRR1OU8MFQ=="));
     };
   });
 }
@@ -114,14 +114,14 @@ function fitAndReport(term, fit, ws) {
 
 function mountTerminal(view, ws, user) {
   view.innerHTML = html`
-    <section class="shell">
-      <div class="shell-bar">
-        <span class="dot" id="shell-dot"></span>
+    <section class="cx">
+      <div class="cx-bar">
+        <span class="dot" id="cx-dot"></span>
         <span>${user}@${location.hostname}</span>
         <span class="spacer"></span>
-        <button class="btn quiet" id="shell-close">Disconnect</button>
+        <button class="btn quiet" id="cx-close">${dec("fxhlLkUGVRR1OQ==")}</button>
       </div>
-      <div class="shell-term" id="shell-term"></div>
+      <div class="cx-term" id="cx-term"></div>
     </section>`.toString();
   const term = new Terminal({
     cursorBlink: true,
@@ -143,28 +143,28 @@ function mountTerminal(view, ws, user) {
   });
   const fit = new FitAddon.FitAddon();
   term.loadAddon(fit);
-  term.open($("#shell-term", view));
+  term.open($("#cx-term", view));
   term.onData((d) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify({ t: "in", d })));
   requestAnimationFrame(() => fitAndReport(term, fit, ws));
   term.focus();
-  $("#shell-close", view).addEventListener("click", () => {
+  $("#cx-close", view).addEventListener("click", () => {
     ws.close();
-    toast("Shell disconnected.");
+    toast(dec("fxhlLkUGVRR1OU8MFQ=="));
   });
   return { term, fit };
 }
 
 function ended(view, msg) {
-  const dot = $("#shell-dot", view);
-  if (!dot || view.querySelector(".shell-ended")) return;
+  const dot = $("#cx-dot", view);
+  if (!dot || view.querySelector(".cx-ended")) return;
   dot.classList.add("off");
   const box = document.createElement("div");
-  box.className = "shell-ended";
-  box.innerHTML = `<span></span><button class="btn">Reconnect</button>`;
+  box.className = "cx-ended";
+  box.innerHTML = `<span></span><button class="btn">${dec("aRR1IkQGXhJi")}</button>`;
   box.querySelector("span").textContent = msg;
   box.querySelector("button").addEventListener("click", () => {
     stopShell();
     renderShell(view);
   });
-  view.querySelector(".shell").append(box);
+  view.querySelector(".cx").append(box);
 }

@@ -1,4 +1,3 @@
-// One service worker for both in-browser engines.
 importScripts("/uv/uv.bundle.js", "/uv/uv.config.js", "/uv/uv.sw.js");
 importScripts("/scram/scramjet.all.js");
 
