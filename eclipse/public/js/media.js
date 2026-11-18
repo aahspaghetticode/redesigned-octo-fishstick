@@ -1,6 +1,6 @@
-import { $, html, esc, store, toast, letterTile, icon, dec } from "./util.js";
+import { $, html, esc, store, toast, letterTile, icon, dec, loadScript } from "./util.js";
 
-const BASE = "/jf";
+const BASE = "/svc/m";
 const CLIENT = "Eclipse";
 const VERSION = "1.0.0";
 const TICKS = 10_000_000;
@@ -449,6 +449,7 @@ async function play(id, startTicks) {
     }
     video.play().catch(() => {});
   };
+  await loadScript("/assets/h/hls.min.js").catch(() => {});
   load("hls", startTicks / TICKS);
 
   const report = (path, extra = {}) =>

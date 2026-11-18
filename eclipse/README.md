@@ -9,7 +9,7 @@ One site for browsing, games and media:
 - **Media**: a Jellyfin client with libraries, continue watching, next up, series and seasons, search, and HLS playback with progress sync.
 - **Server shell**: a hidden browser terminal on the VPS, reached by triple-clicking the invisible top-right corner of the page (route `/#/x`), signed in with the root password. sshd checks the password; Eclipse never stores it.
 
-First-party UI text and several API responses are served lightly obfuscated (`src/obf.js`) so network content filters can't classify the site by its visible text; the browser decodes them at runtime. This is obfuscation, not encryption, and does not hide the proxy data-path routes. See `prompt.md`.
+This site is built to minimise what a network content filter can match: the proxy code and engine bundles load only when you actually open Browse (the landing/Games/Media pages fetch none of it), routes and filenames are neutral (`/assets/*`, `/svc/*`, `/api/lib/*`), engines are exposed only as ids `e1`–`e5`, and visible UI text plus some API bodies are obfuscated and decoded in the browser. This beats signature/keyword filters, but it is **obfuscation, not invisibility** — a filter that intercepts TLS and renders the page still sees the proxy once it's in use. See the "A note on the obfuscation" section of `prompt.md` for what holds up and what doesn't.
 
 ## Hosting it
 

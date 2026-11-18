@@ -34,13 +34,15 @@ One Node.js app (Express) behind Caddy:
 | Part | Where it runs | Paths |
 |---|---|---|
 | Site (home, games, media, settings, shell UI) | Node, `public/` | `/` |
-| **Scramjet** proxy, the default engine | browser service worker + Wisp | `/scramjet/`, `/scram/`, `/wisp/` |
-| **Ultraviolet** proxy | same service worker + Wisp | `/uv/` |
-| **Rammerhead** proxy | inside Node (`@rubynetwork/rammerhead`) | `/newsession`, `/<32-char session id>/<url>`, `/rammerhead.js`, … |
-| **Corrosion** proxy | inside Node | `/corrosion/` |
-| **Womginx** proxy | separate nginx instance on `127.0.0.1:8090`, its own subdomain | `https://wg.<domain>/main/<url>` |
-| gn-math games | Node mirrors and caches gn-math's GitHub repos | `/api/games/gn` |
-| Classroom 6x games | Node scraper (section 6) | `/api/games/c6x` |
+| **Scramjet** proxy (engine `e1`, default) | browser service worker + Wisp | `/svc/a/<url>`, `/assets/rt.js`, `/assets/rt.wasm`, `/svc/w/` |
+| **Ultraviolet** proxy (engine `e2`) | same service worker + Wisp | `/svc/b/<url>`, `/assets/vb.js` |
+| **Rammerhead** proxy (engine `e3`) | inside Node (`@rubynetwork/rammerhead`) | `/newsession`, `/<32-char session id>/<url>`, `/rammerhead.js` — **library-fixed, still carry the name** |
+| **Corrosion** proxy (engine `e4`) | inside Node | `/svc/c/<url>` |
+| **Womginx** proxy (engine `e5`) | separate nginx instance on `127.0.0.1:8090`, its own subdomain | `https://wg.<domain>/main/<url>` |
+| gn-math games | Node mirrors and caches gn-math's GitHub repos | `/api/lib/a` |
+| Classroom 6x games | Node scraper (section 6) | `/api/lib/b` |
+
+The engine routes/filenames are deliberately neutral (`/assets/*`, `/svc/*`), engines are exposed to the client only as opaque ids `e1`–`e5`, and the whole proxy module (`public/js/net.js` plus the engine bundles) loads **only when the person opens Browse or plays a proxied game** — the landing page and the games/media pages fetch none of it. Rammerhead (`e3`) is the exception: its routes and injected `/rammerhead.js` are fixed by the library, so it is the one engine that still looks like a known proxy on the wire. Scramjet (`e1`) is the default.
 | Jellyfin client | Node reverse-proxies to `JELLYFIN_URL` | `/jf/*` |
 | Server shell | Node logs in to `127.0.0.1:22` over SSH | `/#/x` (hidden), WebSocket `/x/ws`, status `/api/x/status` |
 
@@ -107,12 +109,12 @@ curl -fsS https://$D/api/health                          # {"ok":true}
 # them in transit (see "A note on the obfuscation" below). Decode with this helper:
 dco() { node -e 'const K=[59,113,22,77,42,104];let b="";process.stdin.on("data",d=>b+=d).on("end",()=>{const z=Buffer.from(b.trim(),"base64");process.stdout.write(Buffer.from(z.map((v,i)=>v^K[i%6])).toString("utf8"))})'; }
 curl -fsS https://$D/api/engines | dco; echo                 # every engine "ok":true
-curl -fsS https://$D/api/games/gn | dco | head -c 200; echo  # source gn-math, count over 800
+curl -fsS https://$D/api/lib/a | dco | head -c 200; echo  # source gn-math, count over 800
 curl -fsS https://$D/api/x/status | dco; echo                # {"enabled":true,"user":"root"}
 
 # Wisp WebSocket (Scramjet + Ultraviolet need this): expect "101"
 curl -s -o /dev/null -w '%{http_code}\n' --http1.1 -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
-  -H 'Sec-WebSocket-Version: 13' -H "Sec-WebSocket-Key: $(openssl rand -base64 16)" https://$D/wisp/
+  -H 'Sec-WebSocket-Version: 13' -H "Sec-WebSocket-Key: $(openssl rand -base64 16)" https://$D/svc/w/
 
 # Rammerhead: public site 200, private address 403
 ID=$(curl -fsS https://$D/newsession); curl -fsS "https://$D/editsession?id=$ID&enableShuffling=0"; echo
@@ -121,8 +123,8 @@ curl -s -o /dev/null -w '%{http_code}\n' "https://$D/$ID/http://127.0.0.1:8080/a
 
 # Corrosion: public 200, private 403
 x() { node -e 'const s=process.argv[1];console.log(encodeURIComponent([...s].map((c,i)=>i%2?String.fromCharCode(c.charCodeAt(0)^2):c).join("")))' "$1"; }
-curl -s -o /dev/null -w '%{http_code}\n' "https://$D/corrosion/$(x https://example.com/)"
-curl -s -o /dev/null -w '%{http_code}\n' "https://$D/corrosion/$(x http://127.0.0.1:8080/)"
+curl -s -o /dev/null -w '%{http_code}\n' "https://$D/svc/c/$(x https://example.com/)"
+curl -s -o /dev/null -w '%{http_code}\n' "https://$D/svc/c/$(x http://127.0.0.1:8080/)"
 
 # Womginx: public 200, private 403
 curl -s -o /dev/null -w '%{http_code}\n' -b 'womginx_are_you_a_bot=no' "https://wg.$D/main/https://example.com/"
@@ -149,7 +151,13 @@ Expect `[ctl] {"t":"ready",...}` and then `ECLIPSE_SHELL_OK` in the output.
 
 ### A note on the obfuscation
 
-To keep school/work content filters from classifying the site by its visible text, the first-party UI text, comments, and a few API responses (`/api/engines`, `/api/games/gn`, `/api/games/c6x`, `/api/x/status`) are served lightly obfuscated (XOR + base64, see `src/obf.js` and `dec()` in `public/js/util.js`); the browser decodes them at runtime. This is **obfuscation, not encryption** — a filter that base64-decodes everything can still read it, and it does **not** hide the proxy data-path routes (`/scramjet/`, `/corrosion/`, `/wisp/`, `/rammerhead.js`, …) or the vendored engine bundles, which still carry their names. Don't "fix" the encoded responses back to plain JSON, and when you verify endpoints, pipe them through the `dco` helper above. If the owner wants deeper evasion, the data-path routes can be renamed next; note it, don't attempt it blindly.
+This site is built to minimise what a network content filter can match on. Understand this before you "clean up" anything that looks odd:
+
+- **Nothing proxy-related loads until it's used.** The landing page, Games and Media pages fetch only the app's own small JS and the game/catalog data. The proxy module (`public/js/net.js`) and the engine bundles load **only** when the person opens Browse or plays a proxied Classroom 6x game. Do not add eager `<script>` tags for the engine bundles back into `index.html`.
+- **Neutral routes/filenames.** Engine files are served from `/assets/*` (`rt.js`, `rt.wasm`, `vb.js`, `mx.js`, `tp.mjs`, …), the in-page proxy paths are `/svc/a` (Scramjet) and `/svc/b` (Ultraviolet), Corrosion is `/svc/c`, Wisp is `/svc/w`, Jellyfin is `/svc/m`, the catalogs are `/api/lib/a` and `/api/lib/b`, and status is `/api/cfg` / `/api/x/status`. Engines appear to the client only as `e1`–`e5`. Keep it that way.
+- **Visible text + some API bodies are obfuscated** (XOR+base64, `src/obf.js` and `dec()` in `util.js`); the browser decodes at runtime. Obfuscated endpoints: `/api/cfg`, `/api/lib/a`, `/api/lib/b`, `/api/x/status`. Pipe them through `dco` when verifying; don't convert them back to plain JSON.
+
+**What this does and does not beat.** This defeats signature- and keyword-based filters: URL/filename blocklists, known-proxy fingerprints, and scanners that classify a page by its visible text or its loaded JavaScript. It does **not** make a web proxy invisible to a filter that both intercepts TLS *and* renders/executes the page — such a filter sees the decoded DOM and every request the moment the proxy is actually used, and no change inside this app can prevent that. The remaining, unavoidable fingerprints are: the **Rammerhead** engine (`e3`), whose `/newsession`, `/<id>/<url>` and injected `/rammerhead.js` are fixed by its library; the **Womginx** subdomain (`/main/`, `womginxaddcookie`); the WebSocket tunnel itself (a `wss://` connection to `/svc/w/`, though its payload is encrypted); and the vendored engine bundles' own code once they load during active use. Against a truly advanced runtime filter the real defences are operational, not code: a custom domain with clean reputation (sslip.io is itself a flaggable pattern), preferring Scramjet/Ultraviolet (`e1`/`e2`) over Rammerhead, and accepting that the filter may still block the domain or the tunnel. Tell the owner this plainly rather than implying the proxy is undetectable.
 
 ## 5. Server shell
 
@@ -193,18 +201,18 @@ The person who built Eclipse couldn't reach classroom6x.com, so `src/games-c6x.j
 
 ### The contract (don't change it; the frontend depends on it)
 
-- `GET /api/games/c6x` returns:
+- `GET /api/lib/b` returns (the response body is obfuscated on the wire; values below are after decode):
 
   ```json
   { "source": "classroom-6x", "count": 123,
     "games": [{ "id": "c6x-<stable id>", "name": "Retro Bowl", "source": "classroom-6x", "tags": [],
-                "cover": "<image URL, or /api/games/c6x/cover?u=<page>>",
-                "play": { "type": "proxy", "url": "<page or embed URL>", "resolve": "/api/games/c6x/resolve?u=<page>" } }] }
+                "cover": "<image URL, or /api/lib/b/cover?u=<page>>",
+                "play": { "type": "proxy", "url": "<page or embed URL>", "resolve": "/api/lib/b/resolve?u=<page>" } }] }
   ```
 
   On failure it returns HTTP 502 with `{ "error": "...", "games": [] }`. The Games page shows that error and keeps working.
-- `GET /api/games/c6x/resolve?u=<page URL>` returns `{ "url": "<best URL to play>", "page": "<page URL>" }`. The player loads `url` through the user's chosen proxy engine.
-- `GET /api/games/c6x/cover?u=<page URL>` returns image bytes, or 404.
+- `GET /api/lib/b/resolve?u=<page URL>` returns `{ "url": "<best URL to play>", "page": "<page URL>" }`. The player loads `url` through the user's chosen proxy engine.
+- `GET /api/lib/b/cover?u=<page URL>` returns image bytes, or 404.
 - Keep the `cached()` helper from `src/cache.js`: catalog for 6 hours, page info for 24 hours, images for 30 days.
 - Keep the `sameSite()` check. The server may only fetch the Classroom 6x host, plus image or embed hosts you **explicitly** allowlist in a constant after seeing them. Never fetch arbitrary user-supplied hosts.
 - Ids come from the page slug (`c6x-retro-bowl`) so favorites survive catalog changes. Keep it that way.
@@ -261,7 +269,7 @@ The Media tab talks to Jellyfin only through `/jf/*`, which Eclipse forwards to 
 |---|---|
 | No certificate, Caddy logs ACME errors | Ports 80/443 closed at the provider, another service on port 80 (`ss -ltnp`), or the sslip.io rate limit. Use the owner's own domain if needed. |
 | "This engine needs HTTPS" in Browse | The site was opened over `http://`. Use the `https://` URL. |
-| Scramjet/Ultraviolet: blank page or WebSocket errors | `/wisp/` isn't returning 101 (check Caddy), or there's an old service worker. Hard-reload, or clear site data. |
+| Scramjet/Ultraviolet: blank page or WebSocket errors | `/svc/w/` isn't returning 101 (check Caddy), or there's an old service worker. Hard-reload, or clear site data. |
 | Womginx shows "Turned off" in Settings | `WOMGINX_URL` is empty because DNS for `wg.<domain>` doesn't point here, or the build failed. Re-run the installer and read the Womginx step. |
 | Womginx build fails | Old wombat dependencies on Node 22. Try `npx -y node@16 $(which npm) run build-prod` inside the wombat checkout, or install with `WOMGINX=0` and report it. |
 | Womginx returns 403 "you are not allowed" | Its bot blocklist matched the User-Agent (curl, wget, Python…). Test with a browser User-Agent. |

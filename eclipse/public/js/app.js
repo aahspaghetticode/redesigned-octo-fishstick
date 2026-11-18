@@ -1,5 +1,5 @@
 import { $, html, raw, icon, store, dec } from "./util.js";
-import { initBrowser, showBrowser, openInBrowser, warmUp, bindEngineSelect } from "./proxy.js";
+import { showBrowser, openInBrowser, bindEngineSelect, enterBrowse } from "./engine.js";
 import { renderGames, loadCatalog, gameCard, bindCardClicks, initPlayer, skeletonCards } from "./games.js";
 import { renderMedia, stopPlayback } from "./media.js";
 import { renderSettings } from "./settings.js";
@@ -90,8 +90,7 @@ async function route() {
   const view = freshView();
   view.classList.toggle("flush", isBrowse);
   if (isBrowse) {
-    if (params.get("url")) openInBrowser(params.get("url"));
-    else if (!$("#browser-frame iframe")) $("#address").focus();
+    enterBrowse(params);
     return;
   }
   window.scrollTo(0, 0);
@@ -102,7 +101,6 @@ async function route() {
   return renderHome(view);
 }
 
-initBrowser();
 initPlayer();
 window.addEventListener("hashchange", route);
 (() => {
@@ -118,5 +116,4 @@ window.addEventListener("hashchange", route);
   el.addEventListener("pointerdown", () => (press = setTimeout(go, 800)));
   ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => el.addEventListener(ev, () => clearTimeout(press)));
 })();
-window.addEventListener("load", () => setTimeout(warmUp, 300));
 route();

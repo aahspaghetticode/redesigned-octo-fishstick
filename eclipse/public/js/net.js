@@ -1,51 +1,11 @@
-import { $, esc, toast, store, requestFullscreen, dec } from "./util.js";
-
-export const ENGINES = {
-  scramjet: { name: dec("aBJkLEcCXgU="), desc: dec("fRBlOU8bT1F3I05ITB5kJllIVB82OUINGxx5Pl5ISBhiKFlEGxh4LkYdXxh4KgoxVARCOEgNGxB4KQosUgJ1IlgMFQ==") },
-  ultraviolet: { name: dec("bh1iP0seUh56KF4="), desc: dec("dhBiOFgNGwJzP1wBWBQ7OkUaUBRkbVoaVAlvYwopGxZ5Ik5IXRB6IUgJWBo2OkINVVF3bVkBTxQ2L1gNWhplbUUGGyJ1P0sFURRiYw==") },
-  rammerhead: { name: dec("aRB7IE8aUxR3KQ=="), desc: dec("aRRhP0McXgI2PUsPXgI2IkRITxlzbVkNSQdzPwRIcxB4KUYNSFFlIkcNGx15KkMGFhlzLFwRGwJ/OU8bGwZzIUZG") },
-  corrosion: { name: dec("eB5kP0UbUh54"), desc: dec("dB1yKFhISBRkO08aFgJ/KU9ISRRhP0McXgM4bWgNSAU2K0UaGwJ/IFoEXlF5PwoHVxVzPwobUgVzPgQ=") },
-  womginx: { name: dec("bB57KkMGQw=="), desc: dec("dxhxJV4fXhhxJV5IVRZ/I1JFWRBlKE5ISwN5NVNGGyBjJEkDGx54bVkBVgF6KAoYWhZzPgZITBR3JgoHVVF7Ik4NSR82LFoYSF8=") },
-};
-export const DEFAULT_ENGINE = "scramjet";
-
-let statusPromise = null;
-export function engineStatus() {
-  statusPromise ||= fetch("/api/engines")
-    .then((r) => r.text())
-    .then((t) => JSON.parse(dec(t)))
-    .catch(() => ({ scramjet: { ok: true }, ultraviolet: { ok: true } }));
-  return statusPromise;
-}
-
-export function currentEngine() {
-  const e = store.get("proxyEngine", DEFAULT_ENGINE);
-  return ENGINES[e] ? e : DEFAULT_ENGINE;
-}
-export function setEngine(e) {
-  if (!ENGINES[e]) return;
-  store.set("proxyEngine", e);
-  document.querySelectorAll("select[data-engine-select]").forEach((s) => (s.value = e));
-}
-
-export async function bindEngineSelect(select, onChange) {
-  const st = await engineStatus();
-  select.dataset.engineSelect = "";
-  select.innerHTML = Object.entries(ENGINES)
-    .map(([id, e]) => `<option value="${id}" ${st[id]?.ok ? "" : "disabled"}>${esc(e.name)}${st[id]?.ok ? "" : " (off)"}</option>`)
-    .join("");
-  select.value = currentEngine();
-  select.addEventListener("change", () => {
-    setEngine(select.value);
-    onChange?.(select.value);
-  });
-}
+import { ENGINES, DEFAULT_ENGINE, engineStatus, currentEngine, setEngine, bindEngineSelect } from "./engine.js";
+import { $, esc, toast, store, requestFullscreen, dec, loadScript } from "./util.js";
 
 let swReady = null;
 let scramjet = null;
-const wispUrl = () => (location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/wisp/";
+const wispUrl = () => (location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/svc/w/";
 
-function ensureServiceWorker() {
+export function boot() {
   if (swReady) return swReady;
   swReady = (async () => {
     if (!("serviceWorker" in navigator)) {
@@ -55,26 +15,29 @@ function ensureServiceWorker() {
           : dec("bxl/PgoKSR5hPk8aGxV5KFkGHAU2Pl8YSx5kOQobXgNgJEkNGwZ5P0ENSQI4")
       );
     }
+    await loadScript("/assets/mx.js");
+    await loadScript("/assets/rt.js");
+    await loadScript("/assets/vb.js");
+    await loadScript("/assets/vc.js");
     if (typeof $scramjetLoadController !== "function" || typeof BareMux === "undefined") {
       throw new Error(dec("awN5NVNISBJkJFocSFFwLEMEXhU2OUVIVx53KQRIaRR6IksMGwV+KAoYWhZzYw=="));
     }
     const { ScramjetController } = $scramjetLoadController();
     scramjet = new ScramjetController({
-      prefix: "/scramjet/",
-      files: { wasm: "/scram/scramjet.wasm.wasm", all: "/scram/scramjet.all.js", sync: "/scram/scramjet.sync.js" },
+      prefix: "/svc/a/",
+      files: { wasm: "/assets/rt.wasm", all: "/assets/rt.js", sync: "/assets/rs.js" },
     });
     await scramjet.init();
     await navigator.serviceWorker.register("/sw.js", { scope: "/" });
     await navigator.serviceWorker.ready;
-    const conn = new BareMux.BareMuxConnection("/baremux/worker.js");
-    if ((await conn.getTransport()) !== "/epoxy/index.mjs") {
-      await conn.setTransport("/epoxy/index.mjs", [{ wisp: wispUrl() }]);
+    const conn = new BareMux.BareMuxConnection("/assets/mw.js");
+    if ((await conn.getTransport()) !== "/assets/tp.mjs") {
+      await conn.setTransport("/assets/tp.mjs", [{ wisp: wispUrl() }]);
     }
   })();
   swReady.catch(() => (swReady = null));
   return swReady;
 }
-export const warmUp = () => ensureServiceWorker().catch(() => {});
 
 const xor = (s) =>
   encodeURIComponent(
@@ -114,15 +77,15 @@ async function proxiedSrc(engine, url) {
   const st = await engineStatus();
   if (!st[engine]?.ok) throw new Error(`${ENGINES[engine].name} is turned off on this server${st[engine]?.reason ? ` (${st[engine].reason})` : ""}.`);
   switch (engine) {
-    case "ultraviolet":
-      await ensureServiceWorker();
+    case "e2":
+      await boot();
       return __uv$config.prefix + __uv$config.encodeUrl(url);
-    case "rammerhead":
+    case "e3":
       return `/${await rhSession()}/${url}`;
-    case "corrosion":
-      return `/corrosion/${xor(url)}`;
-    case "womginx": {
-      const base = st.womginx.url;
+    case "e4":
+      return `/svc/c/${xor(url)}`;
+    case "e5": {
+      const base = st.e5.url;
       return `${base}/womginxaddcookie/${Date.now()}/${base}/main/${url}`;
     }
   }
@@ -133,14 +96,14 @@ function decodeFrameUrl(engine, frame) {
   try {
     const loc = frame.contentWindow.location;
     const path = loc.pathname + loc.search + loc.hash;
-    if (engine === "ultraviolet" && path.startsWith(__uv$config.prefix)) return __uv$config.decodeUrl(path.slice(__uv$config.prefix.length));
-    if (engine === "rammerhead") return /^\/[a-z0-9]{32}[^/]*\/(.+)$/.exec(path)?.[1] || null;
-    if (engine === "corrosion" && path.startsWith("/corrosion/")) return unxor(path.slice(11).replace(/^[a-z]+_\//, ""));
+    if (engine === "e2" && path.startsWith(__uv$config.prefix)) return __uv$config.decodeUrl(path.slice(__uv$config.prefix.length));
+    if (engine === "e3") return /^\/[a-z0-9]{32}[^/]*\/(.+)$/.exec(path)?.[1] || null;
+    if (engine === "e4" && path.startsWith("/svc/c/")) return unxor(path.slice(7).replace(/^[a-z]+_\//, ""));
   } catch {}
   return null;
 }
 
-export function toUrl(input) {
+function toUrl(input) {
   const s = input.trim();
   if (!s) return null;
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) return s;
@@ -148,11 +111,11 @@ export function toUrl(input) {
   return store.get("search", "https://duckduckgo.com/?q=%s").replace("%s", encodeURIComponent(s));
 }
 
-export async function createProxiedFrame(url) {
+export async function makeFrame(url) {
   const st = await engineStatus();
   const engine = st[currentEngine()]?.ok ? currentEngine() : DEFAULT_ENGINE;
-  if (engine === "scramjet") {
-    await ensureServiceWorker();
+  if (engine === "e1") {
+    await boot();
     const f = scramjet.createFrame();
     f.frame.setAttribute("allow", "fullscreen; autoplay; gamepad; clipboard-read; clipboard-write");
     f.go(url);
@@ -166,10 +129,6 @@ export async function createProxiedFrame(url) {
 
 const tab = { engine: null, sj: null, iframe: null, url: "" };
 const holder = () => $("#browser-frame");
-
-export function showBrowser(show) {
-  $("#browser").hidden = !show;
-}
 
 function loading(on) {
   const bar = $("#loadbar");
@@ -202,14 +161,14 @@ export async function openInBrowser(input, engine = currentEngine()) {
   const url = toUrl(input);
   if (!url) return;
   if (location.hash.split("?")[0] !== "#/browse") location.hash = "#/browse";
-  showBrowser(true);
+  $("#browser").hidden = false;
   $("#address").value = url;
   tab.url = url;
   loading(true);
   try {
-    if (engine === "scramjet") {
-      await ensureServiceWorker();
-      if (tab.engine !== "scramjet" || !tab.sj) {
+    if (engine === "e1") {
+      await boot();
+      if (tab.engine !== "e1" || !tab.sj) {
         tab.sj = scramjet.createFrame();
         tab.sj.frame.setAttribute("allow", "fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media");
         tab.sj.addEventListener("urlchange", (e) => {
@@ -217,7 +176,7 @@ export async function openInBrowser(input, engine = currentEngine()) {
         });
         tab.sj.frame.addEventListener("load", () => loading(false));
       }
-      tab.engine = "scramjet";
+      tab.engine = "e1";
       tab.iframe = tab.sj.frame;
       holder().replaceChildren(tab.iframe);
       tab.sj.go(url);
@@ -289,5 +248,5 @@ export function initBrowser() {
       toast(`${ENGINES[tab.engine].name} can't do that here. Use the page's own links.`);
     }
   });
-  blankState();
+  if (!holder().querySelector("iframe")) blankState();
 }

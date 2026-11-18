@@ -46,8 +46,8 @@ gnRouter.get("/", async (_req, res) => {
         authorLink: z.authorLink || null,
         tags: z.special || [],
         featured: !!z.featured,
-        cover: cover && SAFE_FILE.test(cover) ? `/api/games/gn/cover/${cover}` : null,
-        play: { type: "html", url: `/api/games/gn/html/${html}` },
+        cover: cover && SAFE_FILE.test(cover) ? `/api/lib/a/cover/${cover}` : null,
+        play: { type: "html", url: `/api/lib/a/html/${html}` },
       });
     }
     sendObf(res, { source: "gn-math", count: games.length, games });

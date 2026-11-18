@@ -42,22 +42,33 @@ app.use((_req, res, next) => {
 
 const staticOpts = { maxAge: "1h" };
 const vendor = (p) => path.join(root, "node_modules", p);
-app.use("/scram/", express.static(scramjetPath, staticOpts));
-app.use("/epoxy/", express.static(epoxyPath, staticOpts));
-app.use("/baremux/", express.static(baremuxPath, staticOpts));
-// Our uv.config.js (in public/uv/) must win over the package's default one.
-app.use("/uv/", express.static(path.join(root, "public/uv"), { maxAge: "10m" }));
-app.use("/uv/", express.static(uvPath, staticOpts));
-app.use("/vendor/hls/", express.static(vendor("hls.js/dist"), staticOpts));
-app.use("/vendor/xterm/", express.static(vendor("@xterm/xterm"), staticOpts));
-app.use("/vendor/xterm-fit/", express.static(vendor("@xterm/addon-fit/lib"), staticOpts));
+const file = (abs) => (_q, r) => r.sendFile(abs);
+app.get("/assets/rt.js", file(path.join(scramjetPath, "scramjet.all.js")));
+app.get("/assets/rs.js", file(path.join(scramjetPath, "scramjet.sync.js")));
+app.get("/assets/rt.wasm", file(path.join(scramjetPath, "scramjet.wasm.wasm")));
+app.get("/assets/vb.js", file(path.join(uvPath, "uv.bundle.js")));
+app.get("/assets/vs.js", file(path.join(uvPath, "uv.sw.js")));
+app.get("/assets/vh.js", file(path.join(uvPath, "uv.handler.js")));
+app.get("/assets/vk.js", file(path.join(uvPath, "uv.client.js")));
+app.get("/assets/vc.js", file(path.join(root, "public/uv/uv.config.js")));
+app.get("/assets/mx.js", file(path.join(baremuxPath, "index.js")));
+app.get("/assets/mw.js", file(path.join(baremuxPath, "worker.js")));
+app.get("/assets/tp.mjs", file(path.join(epoxyPath, "index.mjs")));
+app.use("/assets/s/", express.static(scramjetPath, staticOpts));
+app.use("/assets/v/", express.static(path.join(root, "public/uv"), { maxAge: "10m" }));
+app.use("/assets/v/", express.static(uvPath, staticOpts));
+app.use("/assets/m/", express.static(baremuxPath, staticOpts));
+app.use("/assets/t/", express.static(epoxyPath, staticOpts));
+app.use("/assets/h/", express.static(vendor("hls.js/dist"), staticOpts));
+app.use("/assets/x/", express.static(vendor("@xterm/xterm"), staticOpts));
+app.use("/assets/xf/", express.static(vendor("@xterm/addon-fit/lib"), staticOpts));
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
-app.get("/api/engines", (_req, res) => sendObf(res, engineStatus(), 0));
+app.get("/api/cfg", (_req, res) => sendObf(res, engineStatus(), 0));
 app.get("/api/x/status", (_req, res) => sendObf(res, shellStatus(), 0));
-app.use("/api/games/gn", gnRouter);
-app.use("/api/games/c6x", c6xRouter);
-app.use("/jf", jellyfinRouter);
+app.use("/api/lib/a", gnRouter);
+app.use("/api/lib/b", c6xRouter);
+app.use("/svc/m", jellyfinRouter);
 
 // The service worker must be served from the root scope and never cached long.
 app.get("/sw.js", (_req, res) => {
@@ -74,7 +85,7 @@ const server = createServer((req, res) => {
 
 server.on("upgrade", (req, socket, head) => {
   socket.on("error", () => socket.destroy());
-  if (req.url.endsWith("/wisp/")) return wisp.routeRequest(req, socket, head);
+  if (req.url.endsWith("/svc/w/")) return wisp.routeRequest(req, socket, head);
   if (req.url.startsWith("/x/ws")) return handleShellUpgrade(req, socket, head);
   if (handleEngineUpgrade(req, socket, head)) return;
   socket.destroy();

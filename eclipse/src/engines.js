@@ -3,7 +3,7 @@
 //  Scramjet, Ultraviolet  - run in the browser's service worker; the server
 //                           only serves their files and the Wisp socket.
 //  Rammerhead             - runs in this process (sessions in data/).
-//  Corrosion              - runs in this process under /corrosion/.
+//  Corrosion              - runs in this process under /svc/c/.
 //  Womginx                - a separate nginx instance on its own subdomain
 //                           (see deploy/womginx). WOMGINX_URL points at it.
 import fs from "node:fs";
@@ -55,7 +55,7 @@ export async function initEngines() {
   if (flag("ENGINE_CORROSION")) {
     try {
       const { default: Corrosion } = await import("corrosion");
-      corrosion = new Corrosion({ prefix: "/corrosion/", codec: "xor", title: false, ws: true, cookie: true });
+      corrosion = new Corrosion({ prefix: "/svc/c/", codec: "xor", title: false, ws: true, cookie: true });
       state.corrosion = { ok: true };
     } catch (e) {
       state.corrosion = { ok: false, reason: `failed to start: ${e.message}` };
@@ -68,12 +68,14 @@ export async function initEngines() {
 }
 
 export function engineStatus() {
+  // Client-facing ids are opaque codes (e1..e5) so engine names never appear
+  // in the /api/cfg response or the always-loaded client code.
   return {
-    scramjet: { ok: true },
-    ultraviolet: { ok: true },
-    rammerhead: state.rammerhead,
-    corrosion: state.corrosion,
-    womginx: state.womginx,
+    e1: { ok: true },
+    e2: { ok: true },
+    e3: state.rammerhead,
+    e4: state.corrosion,
+    e5: state.womginx,
   };
 }
 
@@ -119,7 +121,7 @@ export function handleEngineRequest(req, res) {
     );
     return true;
   }
-  if (corrosion && req.url.startsWith("/corrosion/")) {
+  if (corrosion && req.url.startsWith("/svc/c/")) {
     // Corrosion builds absolute URLs from socket.encrypted; behind Caddy the
     // socket is plain HTTP, so mark it as TLS when the edge says so.
     if (forwardedProto(req) === "https") req.socket.encrypted = true;
@@ -145,7 +147,7 @@ export function handleEngineUpgrade(req, socket, head) {
     );
     return true;
   }
-  if (corrosion && req.url.startsWith("/corrosion/")) {
+  if (corrosion && req.url.startsWith("/svc/c/")) {
     const target = corrosionTarget(req.url);
     (target ? isBlockedUrl(target.replace(/^ws/, "http")) : Promise.resolve(false)).then((blocked) =>
       blocked ? socket.destroy() : corrosion.upgrade(req, socket, head)

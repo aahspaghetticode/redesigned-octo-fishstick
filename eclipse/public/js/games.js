@@ -1,5 +1,5 @@
 import { $, html, raw, esc, store, toast, letterTile, requestFullscreen, icon, dec } from "./util.js";
-import { createProxiedFrame } from "./proxy.js";
+import { makeFrame } from "./engine.js";
 
 const PAGE = 120;
 let catalog = null; // { games: [], errors: [] }
@@ -10,8 +10,8 @@ export function loadCatalog() {
   if (loading) return loading;
   loading = (async () => {
     const sources = [
-      [dec("aB5jP0kNGzA="), "/api/games/gn"],
-      [dec("aB5jP0kNGzM="), "/api/games/c6x"],
+      [dec("aB5jP0kNGzA="), "/api/lib/a"],
+      [dec("aB5jP0kNGzM="), "/api/lib/b"],
     ];
     const results = await Promise.all(
       sources.map(async ([label, url]) => {
@@ -206,7 +206,7 @@ export async function playGame(id) {
         } catch {}
       }
       if (currentGame !== g) return;
-      const frame = await createProxiedFrame(target);
+      const frame = await makeFrame(target);
       if (currentGame !== g) return;
       stage.replaceChildren(frame);
       frame.focus();

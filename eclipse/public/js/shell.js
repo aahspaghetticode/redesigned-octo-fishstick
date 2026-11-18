@@ -49,9 +49,9 @@ export async function renderShell(view) {
     btn.disabled = true;
     btn.textContent = dec("eB54I08LTxh4KsjonQ==");
     try {
-      loadStyle("/vendor/xterm/css/xterm.css");
-      await loadScript("/vendor/xterm/lib/xterm.js");
-      await loadScript("/vendor/xterm-fit/addon-fit.js");
+      loadStyle("/assets/x/css/xterm.css");
+      await loadScript("/assets/x/lib/xterm.js");
+      await loadScript("/assets/xf/addon-fit.js");
       await connect(view, $("#cx-pass", view).value, status.user, (msg) => {
         err.textContent = msg;
         err.hidden = false;

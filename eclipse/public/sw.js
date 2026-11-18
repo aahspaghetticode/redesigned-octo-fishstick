@@ -1,5 +1,5 @@
-importScripts("/uv/uv.bundle.js", "/uv/uv.config.js", "/uv/uv.sw.js");
-importScripts("/scram/scramjet.all.js");
+importScripts("/assets/vb.js", "/assets/vc.js", "/assets/vs.js");
+importScripts("/assets/rt.js");
 
 const uv = new UVServiceWorker();
 const { ScramjetServiceWorker } = $scramjetLoadWorker();

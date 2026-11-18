@@ -1,5 +1,5 @@
 import { $, html, esc, store, toast, dec } from "./util.js";
-import { ENGINES, DEFAULT_ENGINE, engineStatus, currentEngine, setEngine, resetRh } from "./proxy.js";
+import { ENGINES, DEFAULT_ENGINE, engineStatus, currentEngine, setEngine, resetRh } from "./engine.js";
 
 export const SEARCH_ENGINES = [
   ["DuckDuckGo", "https://duckduckgo.com/?q=%s"],

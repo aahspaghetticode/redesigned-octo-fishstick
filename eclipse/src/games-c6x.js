@@ -134,11 +134,11 @@ c6xRouter.get("/", async (_req, res) => {
         name: g.name,
         source: "classroom-6x",
         tags: [],
-        cover: g.cover || `/api/games/c6x/cover?u=${encodeURIComponent(g.url)}`,
+        cover: g.cover || `/api/lib/b/cover?u=${encodeURIComponent(g.url)}`,
         play: {
           type: "proxy",
           url: g.url,
-          resolve: `/api/games/c6x/resolve?u=${encodeURIComponent(g.url)}`,
+          resolve: `/api/lib/b/resolve?u=${encodeURIComponent(g.url)}`,
         },
       };
     });
